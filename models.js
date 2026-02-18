@@ -1,6 +1,6 @@
 // CONFIGURATION
 const REPO_OWNER = "ecwgrpmkt-stack";
-const REPO_NAME = "ECW-Studio"; // UPDATED: Matches your screenshot
+const REPO_NAME = "ECW-Studio"; 
 const MODEL_FOLDER = "models";
 
 let models = []; 
@@ -14,52 +14,40 @@ async function initShowroom() {
     if(loader) loader.classList.add('active');
 
     try {
-        // Fetch from the correct repo
         const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${MODEL_FOLDER}`);
         
-        if (response.status === 404) {
-            throw new Error(`Folder '${MODEL_FOLDER}' not found in repo '${REPO_NAME}'.`);
-        }
+        if (response.status === 404) throw new Error("Models folder not found.");
+        if (!response.ok) throw new Error("API Error.");
         
-        if (!response.ok) throw new Error("API Error. Check Network/Rate Limits.");
         const files = await response.json();
-
-        // 1. Find GLB files
         const glbFiles = files.filter(f => f.name.toLowerCase().endsWith('.glb') && !f.name.startsWith('disabled_'));
 
-        if (glbFiles.length === 0) throw new Error("No 3D models (.glb) found in folder.");
+        if (glbFiles.length === 0) throw new Error("No 3D models found.");
 
-        // 2. Link GLB + PNG
         models = glbFiles.map(glb => {
             const baseName = glb.name.substring(0, glb.name.lastIndexOf('.'));
             const pngName = `${baseName}.png`;
             const posterFile = files.find(f => f.name === pngName);
             
-            // Name Formatting "ford_mustang_1965" -> "Ford Mustang 1965"
             let niceName = baseName.replace(/_/g, ' ').replace(/-/g, ' ');
-            // Capitalize Words
             niceName = niceName.replace(/\b\w/g, l => l.toUpperCase());
 
             return {
                 src: glb.download_url,
+                // OPTIMIZATION: Use the PNG as the 'poster' so the 3D engine doesn't load immediately
                 poster: posterFile ? posterFile.download_url : 'https://placehold.co/400x300/222/FFF.png?text=No+Preview',
                 name: niceName,
-                // Extract year if it exists in the filename (e.g. 1965)
                 year: (niceName.match(/\d{4}/) || ["Model"])[0] 
             };
         });
 
-        // 3. Build UI
         buildThumbnails();
         loadModel(0);
         setupEvents();
 
     } catch (error) {
         console.error(error);
-        const infoName = document.getElementById('infoName');
-        const infoModel = document.getElementById('infoModel');
-        if(infoName) infoName.innerText = "System Error";
-        if(infoModel) infoModel.innerText = error.message;
+        if(document.getElementById('infoName')) document.getElementById('infoName').innerText = "Error Loading";
     } finally {
         if(loader) setTimeout(() => loader.classList.remove('active'), 500);
     }
@@ -71,13 +59,15 @@ function loadModel(index) {
     
     document.getElementById('infoName').innerText = data.name;
     document.getElementById('infoYear').innerText = data.year;
-    document.getElementById('infoModel').innerText = "Exterior";
 
-    // Set Viewer Attributes
     if(viewer) {
+        // Critical for performance: Update poster FIRST
         viewer.poster = data.poster; 
         viewer.src = data.src;
         viewer.alt = `3D Model of ${data.name}`;
+        
+        // Reset rotation but don't force load until interaction if possible
+        viewer.currentTime = 0;
         viewer.autoRotate = true; 
     }
     
@@ -102,24 +92,20 @@ function buildThumbnails() {
 function updateThumbs() {
     document.querySelectorAll(".thumb").forEach((t, i) => {
         t.classList.toggle("active", i === currentIndex);
-        if(i === currentIndex) t.scrollIntoView({ behavior: "smooth", block: "center" });
+        if(i === currentIndex) t.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
     });
 }
 
 function setupEvents() {
-    const prev = document.getElementById("prevBtn");
-    const next = document.getElementById("nextBtn");
-    const fs = document.getElementById("fsBtn");
-
-    if(prev) prev.onclick = () => {
+    document.getElementById("prevBtn").onclick = () => {
         currentIndex = (currentIndex - 1 + models.length) % models.length;
         loadModel(currentIndex);
     };
-    if(next) next.onclick = () => {
+    document.getElementById("nextBtn").onclick = () => {
         currentIndex = (currentIndex + 1) % models.length;
         loadModel(currentIndex);
     };
-    if(fs) fs.onclick = () => {
+    document.getElementById("fsBtn").onclick = () => {
         const app = document.getElementById("app");
         !document.fullscreenElement ? app.requestFullscreen() : document.exitFullscreen();
     };
@@ -128,15 +114,18 @@ function setupEvents() {
         viewer.addEventListener('camera-change', (e) => {
             if (e.detail.source === 'user-interaction') stopAutoRotate();
         });
+        // Optimisation: Preload next model's poster when current loads
+        viewer.addEventListener('load', () => {
+             const nextIdx = (currentIndex + 1) % models.length;
+             const img = new Image(); img.src = models[nextIdx].poster;
+        });
     }
 }
 
 function stopAutoRotate() {
     if(!viewer) return;
     viewer.autoRotate = false;
-    const idle = document.getElementById('idleIndicator');
-    if(idle) idle.classList.remove('visible');
-    
+    document.getElementById('idleIndicator').classList.remove('visible');
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => { viewer.autoRotate = true; }, IDLE_DELAY);
 }
@@ -146,5 +135,4 @@ function resetIdleTimer() {
     if(viewer) viewer.autoRotate = true;
 }
 
-// Start
 initShowroom();
