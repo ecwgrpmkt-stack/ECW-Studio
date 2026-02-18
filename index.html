@@ -2,41 +2,61 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>ECW Studio - Access</title>
+    <title>ECW Studio - Select Experience</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="login-body">
-    
-    <div class="login-container">
-        <div class="login-header">
-            <h1>ECW Studio 360</h1>
-            <p>Select Experience</p>
+<body class="landing-body">
+
+    <nav class="landing-nav">
+        <div class="landing-logo">ECW <span>Studio</span></div>
+        <button id="adminBtn" class="admin-login-trigger">Admin Login</button>
+    </nav>
+
+    <div class="hero-container">
+        <div class="hero-content">
+            <h1>Choose Your Experience</h1>
+            <p class="hero-subtitle">Explore our digital showroom.</p>
+            
+            <div class="hero-cards">
+                <a href="models.html" class="hero-card exterior-card">
+                    <div class="card-inner">
+                        <div class="card-icon">🏎️</div>
+                        <h2>Exterior 360</h2>
+                        <p>Interactive 3D Walkaround</p>
+                        <span class="btn-text">Enter Showroom &rarr;</span>
+                    </div>
+                </a>
+
+                <a href="gallery.html" class="hero-card interior-card">
+                    <div class="card-inner">
+                        <div class="card-icon">📷</div>
+                        <h2>Interior 360</h2>
+                        <p>Immersive Panoramic Views</p>
+                        <span class="btn-text">Enter Gallery &rarr;</span>
+                    </div>
+                </a>
+            </div>
         </div>
+    </div>
 
-        <div class="access-split">
-            <div class="access-card viewer-card">
-                <div class="card-icon">📷</div>
-                <h2>Interior Gallery</h2>
-                <p>Interactive 360° panoramic tours.</p>
-                <a href="gallery.html" class="access-btn">Enter Gallery</a>
+    <div id="loginModal" class="modal-overlay">
+        <div class="modal-box login-box">
+            <div class="modal-header">
+                <h3>Developer Access</h3>
+                <button class="modal-close" id="closeLogin">×</button>
             </div>
-
-            <div class="access-card showroom-card">
-                <div class="card-icon">🏎️</div>
-                <h2>Vehicle Showroom</h2>
-                <p>Inspect 3D exterior models.</p>
-                <a href="models.html" class="access-btn btn-blue">Enter Showroom</a>
-            </div>
-
-            <div class="access-card dev-card">
-                <div class="card-icon">⚙️</div>
-                <h2>Developer Login</h2>
-                <p>Manage content assets.</p>
+            <div class="modal-body">
                 <form id="loginForm">
-                    <input type="text" id="username" placeholder="Username" required autocomplete="off">
-                    <input type="password" id="password" placeholder="Password" required>
-                    <button type="submit" class="access-btn dev-btn">Login</button>
+                    <div class="input-group">
+                        <label>Username</label>
+                        <input type="text" id="username" placeholder="Enter username" required autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" id="password" placeholder="Enter password" required>
+                    </div>
+                    <button type="submit" class="access-btn btn-blue">Secure Login</button>
                     <div id="loginError" class="error-msg">Invalid Credentials</div>
                 </form>
             </div>
@@ -44,6 +64,18 @@
     </div>
 
     <script>
+        // Modal Logic
+        const modal = document.getElementById('loginModal');
+        const adminBtn = document.getElementById('adminBtn');
+        const closeBtn = document.getElementById('closeLogin');
+
+        adminBtn.onclick = () => { modal.classList.add('active'); document.getElementById('username').focus(); };
+        closeBtn.onclick = () => modal.classList.remove('active');
+        
+        // Close if clicking outside box
+        modal.onclick = (e) => { if(e.target === modal) modal.classList.remove('active'); };
+
+        // Login Logic
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const u = document.getElementById('username').value.trim();
@@ -55,8 +87,8 @@
             } else {
                 const err = document.getElementById('loginError');
                 err.style.display = 'block';
-                document.querySelector('.dev-card').classList.add('shake');
-                setTimeout(() => document.querySelector('.dev-card').classList.remove('shake'), 500);
+                document.querySelector('.login-box').classList.add('shake');
+                setTimeout(() => document.querySelector('.login-box').classList.remove('shake'), 500);
             }
         });
     </script>
