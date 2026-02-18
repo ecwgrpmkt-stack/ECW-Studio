@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>ECW Showroom - 3D Models</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        
+        <div id="model-container">
+            <model-viewer 
+                id="viewer3d" 
+                camera-controls 
+                auto-rotate 
+                shadow-intensity="1" 
+                shadow-softness="0.5"
+                /* PREVENTS BOTTOM VIEW */
+                min-camera-orbit="auto 0deg auto" 
+                max-camera-orbit="auto 85deg auto"
+                min-field-of-view="10deg"
+                max-field-of-view="45deg"
+                interaction-prompt="none"
+                src="" 
+                poster=""
+                alt="3D Vehicle Model">
+                
+                <div class="poster-loader" slot="poster">
+                    <div class="spinner"></div>
+                </div>
+
+            </model-viewer>
+        </div>
+
+        <div id="vehicleInfoPanel">
+            <h1 id="infoName">Loading Repository...</h1>
+            <div class="info-sub">
+                <span id="infoYear">ECW</span> 
+                <span class="divider">|</span> 
+                <span id="infoModel">Studio</span>
+            </div>
+        </div>
+
+        <div id="sidebar">
+            <div class="sidebar-title">Select Model</div>
+            <div id="thumbPanel"></div>
+        </div>
+
+        <div id="controls">
+            <button id="prevBtn">◀</button>
+            <button id="fsBtn">⛶</button>
+            <button id="nextBtn">▶</button>
+        </div>
+        
+        <div id="idleIndicator">
+            <div class="hand-icon">👆</div>
+            <div class="drag-text">Rotate to Explore</div>
+        </div>
+
+        <div id="ecwLoader">
+            <div class="spinner"></div>
+            <div class="loader-text">ECW</div>
+        </div>
+
+    </div>
+    <script src="models.js"></script>
+</body>
+</html>
