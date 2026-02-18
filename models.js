@@ -1,6 +1,6 @@
 // CONFIGURATION
 const REPO_OWNER = "ecwgrpmkt-stack";
-const REPO_NAME = "ECW-Studio"; // FIXED: Correct Repo Name
+const REPO_NAME = "ECW-Studio"; // FIXED: Points to correct repo
 const MODEL_FOLDER = "models";
 
 let models = []; 
@@ -21,7 +21,7 @@ async function initShowroom() {
         
         const files = await response.json();
         
-        // Filter for GLB files (Case insensitive)
+        // Filter for GLB files
         const glbFiles = files.filter(f => f.name.toLowerCase().endsWith('.glb') && !f.name.startsWith('disabled_'));
 
         if (glbFiles.length === 0) throw new Error("No 3D models found in repository.");
@@ -32,13 +32,13 @@ async function initShowroom() {
             // Try to find matching PNG
             const posterFile = files.find(f => f.name === pngName);
             
-            // Format Name
+            // Format Name: "ford_mustang_1965" -> "Ford Mustang 1965"
             let niceName = baseName.replace(/_/g, ' ').replace(/-/g, ' ');
             niceName = niceName.replace(/\b\w/g, l => l.toUpperCase());
 
             return {
                 src: glb.download_url,
-                // If poster exists use it, otherwise use placeholder text
+                // Fallback for missing thumbnails
                 poster: posterFile ? posterFile.download_url : 'https://placehold.co/400x300/222/FFF.png?text=No+Preview',
                 name: niceName,
                 year: (niceName.match(/\d{4}/) || ["Model"])[0] 
@@ -52,9 +52,10 @@ async function initShowroom() {
 
     } catch (error) {
         console.error(error);
-        // Show error on screen so you know what happened
-        document.getElementById('infoName').innerText = "ERROR";
-        document.getElementById('infoYear').innerText = "Check Console";
+        if(document.getElementById('infoName')) {
+            document.getElementById('infoName').innerText = "ERROR";
+            document.getElementById('infoYear').innerText = "Check Console";
+        }
     } finally {
         if(loader) setTimeout(() => loader.classList.remove('active'), 500);
     }
@@ -68,7 +69,7 @@ function loadModel(index) {
     document.getElementById('infoYear').innerText = data.year;
 
     if(viewer) {
-        // Load Model
+        // Load Model (Poster optional, fallback provided above)
         viewer.poster = data.poster; 
         viewer.src = data.src;
         viewer.alt = `3D Model of ${data.name}`;
