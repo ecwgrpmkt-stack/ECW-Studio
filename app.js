@@ -1,6 +1,6 @@
 // CONFIGURATION
 const REPO_OWNER = "ecwgrpmkt-stack";
-const REPO_NAME = "360_gallery";
+const REPO_NAME = "ECW-Studio"; // UPDATED: Correct Repo Name
 const IMAGE_FOLDER = "images";
 
 let images = []; 
@@ -66,7 +66,8 @@ async function bruteForceLoadImages() {
 
 function finishInit() {
     if (images.length === 0) {
-        alert("Critical: No images found.");
+        // Silent fail or alert if needed, but keeping UI clean
+        console.log("No images found.");
         return;
     }
     buildThumbnails();
@@ -116,7 +117,7 @@ function initDrawingTools() {
 
 function resizeCanvas() {
     if (canvas && canvas.parentElement) {
-        canvas.width = canvas.parentElement.clientWidth - 170; // Correct Canvas Width
+        canvas.width = canvas.parentElement.clientWidth - 170; // Correct Canvas Width (minus sidebar)
         canvas.height = canvas.parentElement.clientHeight;
     }
 }
@@ -296,4 +297,5 @@ document.getElementById("nextBtn").onclick = () => { resetIdleTimer(); let newIn
 const fsBtn = document.getElementById("fsBtn");
 fsBtn.onclick = () => { resetIdleTimer(); if (!document.fullscreenElement) { document.getElementById("app").requestFullscreen().catch(console.log); } else { document.exitFullscreen(); } };
 
+// Start
 initGallery();
