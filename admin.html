@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>ECW Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="admin-body">
@@ -17,8 +18,8 @@
     <div class="admin-container">
         
         <div class="admin-tabs">
-            <button class="tab-btn active" onclick="switchContext('images')">📷 360 Gallery</button>
-            <button class="tab-btn" onclick="switchContext('models')">🏎️ 3D Showroom</button>
+            <button class="tab-btn active" id="tab-images" onclick="switchContext('images')">📷 360 Gallery</button>
+            <button class="tab-btn" id="tab-models" onclick="switchContext('models')">🏎️ 3D Showroom</button>
         </div>
 
         <div class="admin-panel upload-panel">
@@ -33,18 +34,18 @@
             <div class="config-group">
                 <label>Active Repository Path</label>
                 <div class="input-with-btn">
-                    <input type="text" id="repoUrl" value="" readonly style="font-family: monospace; color: #3399ff;">
+                    <input type="text" id="repoUrl" value="/images" readonly class="path-display">
                 </div>
             </div>
 
             <hr class="panel-divider">
 
-            <h2 id="uploadTitle">Upload Assets</h2>
-            <p class="upload-hint" id="uploadHint">Supported: JPG, PNG</p>
+            <h2 id="uploadTitle">Upload 360 Images</h2>
+            <p class="upload-hint" id="uploadHint">Supported: JPG, PNG (Max 25MB)</p>
             
             <div class="upload-controls">
                 <div class="file-drop-area" id="dropArea">
-                    <input type="file" id="fileInput" multiple>
+                    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png">
                     <p>Drag & Drop Files Here or <span>Browse</span></p>
                 </div>
                 <div id="uploadStatus" class="status-msg"></div>
@@ -53,16 +54,16 @@
 
         <div class="admin-panel list-panel">
             <div class="panel-header">
-                <h2 id="listTitle">Gallery Images</h2>
+                <h2 id="listTitle">Repository Files</h2>
                 <button onclick="loadFiles()" class="refresh-btn">Refresh List</button>
             </div>
 
             <table class="image-table">
                 <thead>
                     <tr>
-                        <th>Preview</th>
+                        <th width="80">Preview</th>
                         <th>Filename</th>
-                        <th>Size/Type</th>
+                        <th>Size</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
