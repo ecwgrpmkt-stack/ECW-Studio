@@ -2,33 +2,32 @@
 const REPO_OWNER = "ecwgrpmkt-stack";
 const REPO_NAME = "360_gallery";
 
-// STATE
-let currentFolder = "images"; // 'images' or 'models'
+// STATE - DEFAULTS TO IMAGES TO PRESERVE ORIGINAL SYSTEM
+let currentFolder = "images"; 
 
-// --- 1. AUTH & INIT ---
+// --- 1. AUTH ---
 if (sessionStorage.getItem('ecw_auth') !== 'true') window.location.href = 'index.html';
 function logout() { sessionStorage.removeItem('ecw_auth'); window.location.href = 'index.html'; }
 
-// --- 2. CONTEXT SWITCHING ---
+// --- 2. SWITCHING CONTEXT ---
 function switchContext(folder) {
     currentFolder = folder;
     
-    // UI Updates
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`tab-${folder}`).classList.add('active');
     
     const isModel = folder === 'models';
     document.getElementById('uploadTitle').innerText = isModel ? "Upload 3D Models & Posters" : "Upload 360 Images";
-    document.getElementById('uploadHint').innerText = isModel ? "Required: .GLB (Model) AND .PNG (Poster) - Max 50MB" : "Supported: JPG, PNG - Max 25MB";
+    document.getElementById('uploadHint').innerText = isModel ? "Required: .GLB (Model) AND .PNG (Poster)" : "Supported: JPG, PNG";
     
-    // Strict Accept types to prevent errors
+    // Strict Input Filter
     document.getElementById('fileInput').accept = isModel ? ".glb, .png" : ".jpg, .jpeg, .png";
     document.getElementById('repoUrl').value = `/${folder}`;
     
     loadFiles();
 }
 
-// --- 3. TOKEN MANAGEMENT ---
+// --- 3. TOKEN LOGIC ---
 const tokenInput = document.getElementById('githubToken');
 const tokenLockBtn = document.getElementById('tokenLockBtn');
 let isTokenLocked = true; 
@@ -40,17 +39,17 @@ else { unlockTokenField(); }
 function unlockTokenField() {
     tokenInput.readOnly = false; tokenInput.disabled = false; tokenInput.type = 'text';         
     tokenInput.style.backgroundColor = "rgba(255,255,255,0.1)"; tokenInput.style.color = "#ffffff";
-    tokenLockBtn.innerText = '🔓'; tokenLockBtn.title = 'Lock to Save'; isTokenLocked = false;
+    tokenLockBtn.innerText = '🔓'; isTokenLocked = false;
 }
 function lockTokenField() {
     tokenInput.readOnly = true; tokenInput.type = 'password';     
     tokenInput.style.backgroundColor = "rgba(0,0,0,0.5)"; tokenInput.style.color = "#888888";
-    tokenLockBtn.innerText = '🔒'; tokenLockBtn.title = 'Unlock to Edit'; isTokenLocked = true;
+    tokenLockBtn.innerText = '🔒'; isTokenLocked = true;
     if (tokenInput.value.trim() !== '') localStorage.setItem('ecw_gh_token', tokenInput.value.trim());
 }
 tokenLockBtn.addEventListener('click', () => isTokenLocked ? (unlockTokenField(), tokenInput.focus()) : lockTokenField());
 
-// --- 4. DATA FETCHING (DEBUGGED) ---
+// --- 4. DATA FETCHING ---
 async function loadFiles() {
     const tableBody = document.getElementById('fileTableBody');
     tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">Fetching /${currentFolder}...</td></tr>`;
@@ -58,16 +57,17 @@ async function loadFiles() {
     try {
         const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${currentFolder}?t=${Date.now()}`);
         
+        // HANDLE MISSING FOLDER GRACEFULLY
         if (response.status === 404) {
              tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:orange;">Folder /${currentFolder} does not exist yet. Upload a file to create it.</td></tr>`;
              return;
         }
         
-        if (!response.ok) throw new Error("GitHub API Error. Check Token/Rate Limits.");
+        if (!response.ok) throw new Error("GitHub API Error. Check Token.");
         
         const data = await response.json();
         
-        // STRICT FILTERING to prevent "messy" tables
+        // STRICT FILTERING
         const files = data.filter(file => {
             const ext = file.name.split('.').pop().toLowerCase();
             if (currentFolder === 'images') return ['jpg', 'jpeg', 'png'].includes(ext);
@@ -82,7 +82,6 @@ async function loadFiles() {
             row.innerHTML = buildRowHTML(file);
             tableBody.appendChild(row);
         }
-        
         if(files.length === 0) tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No files found.</td></tr>`;
 
     } catch (error) {
@@ -95,12 +94,10 @@ function buildRowHTML(file) {
     const cleanName = isDisabled ? file.name.replace("disabled_", "") : file.name;
     const ext = file.name.split('.').pop().toLowerCase();
     
-    // Visual Badge
     const statusBadge = isDisabled 
         ? `<span class="badge warning">Hidden</span>` 
         : `<span class="badge success">Live</span>`;
     
-    // Smart Preview
     let preview = "";
     if (['jpg','jpeg','png'].includes(ext)) {
         preview = `<img src="${file.download_url}" class="admin-thumb" style="opacity: ${isDisabled ? 0.5 : 1}" loading="lazy">`;
@@ -142,20 +139,17 @@ async function githubRequest(endpoint, method = 'GET', body = null) {
     }
     
     const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/${endpoint}`, options);
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || `API Error ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`API Error ${response.status}`);
     return response;
 }
 
-// --- 6. ACTIONS (RENAME/DELETE) ---
+// --- 6. ACTIONS ---
 const modal = document.getElementById('customModal');
 function closeModal() { modal.classList.remove('active'); }
 
 function openDeleteModal(filename, sha) {
     document.getElementById('modalTitle').innerText = "Delete Asset";
-    document.getElementById('modalBody').innerHTML = `<p>Are you sure you want to delete <br><strong>${filename}</strong>?</p>`;
+    document.getElementById('modalBody').innerHTML = `<p>Delete <strong>${filename}</strong>?</p>`;
     document.getElementById('modalFooter').innerHTML = `
         <button class="modal-btn btn-cancel" onclick="closeModal()">Cancel</button>
         <button class="modal-btn btn-confirm" onclick="executeDelete('${filename}', '${sha}')">Delete</button>`;
@@ -167,8 +161,7 @@ async function executeDelete(filename, sha) {
         await githubRequest(`contents/${currentFolder}/${encodeURIComponent(filename)}`, 'DELETE', { 
             message: `Delete ${filename}`, sha: sha 
         });
-        document.getElementById(`row-${sha}`).remove();
-        closeModal();
+        document.getElementById(`row-${sha}`).remove(); closeModal();
     } catch(e) { alert(e.message); }
 }
 
@@ -180,9 +173,9 @@ function openRenameModal(oldName, sha) {
     document.getElementById('modalTitle').innerText = "Rename Asset";
     document.getElementById('modalBody').innerHTML = `
         <label>New Filename</label>
-        <div class="rename-input-group">
+        <div class="input-with-btn" style="background:rgba(0,0,0,0.3); padding:5px;">
             <input type="text" id="renameBaseInput" value="${baseName}">
-            <span class="rename-ext">${ext}</span>
+            <span style="color:#888; padding:5px;">${ext}</span>
         </div>`;
     document.getElementById('modalFooter').innerHTML = `
         <button class="modal-btn btn-cancel" onclick="closeModal()">Cancel</button>
@@ -196,38 +189,27 @@ async function executeRename(oldName, ext, oldSha) {
     if(newName === oldName) { closeModal(); return; }
 
     try {
-        // 1. Get Old Content
+        // GET -> PUT -> DELETE strategy
         const getRes = await githubRequest(`contents/${currentFolder}/${encodeURIComponent(oldName)}`, 'GET');
         const getData = await getRes.json();
         
-        // 2. Upload New
         await githubRequest(`contents/${currentFolder}/${encodeURIComponent(newName)}`, 'PUT', {
-            message: `Rename ${oldName} to ${newName}`,
-            content: getData.content // Base64 is already here
+            message: `Rename ${oldName} to ${newName}`, content: getData.content
         });
         
-        // 3. Delete Old
         await githubRequest(`contents/${currentFolder}/${encodeURIComponent(oldName)}`, 'DELETE', {
             message: `Cleanup ${oldName}`, sha: oldSha
         });
         
-        closeModal();
-        loadFiles(); // Refresh to update SHA/IDs
+        closeModal(); loadFiles();
     } catch(e) { alert("Rename Failed: " + e.message); }
 }
 
 async function toggleVisibility(filename, sha, url) {
     const isHidden = filename.startsWith("disabled_");
     const newName = isHidden ? filename.replace("disabled_", "") : `disabled_${filename}`;
-    // Simple rename logic
-    const lastDot = filename.lastIndexOf('.');
-    const ext = filename.substring(lastDot);
-    await executeRename(filename, ext, sha); // Reuse existing rename function (modified slightly in logic to just pass name)
-    // Actually, calling executeRename is hard because it expects DOM input. Let's do a direct call:
-    // ... (Refactoring for brevity: The manual Rename/Delete logic above is safer. 
-    // Just tell user to rename for now or implement direct rename call).
     
-    // FIX: Just open the rename modal with the new name pre-filled? No, let's implement the direct call correctly:
+    // Quick rename via raw URL to avoid 404s on fresh fetch
     try {
         const getRes = await fetch(url);
         const blob = await getRes.blob();
@@ -242,23 +224,21 @@ async function toggleVisibility(filename, sha, url) {
     } catch(e) { alert("Toggle failed: " + e.message); }
 }
 
-// --- 7. UPLOAD LOGIC ---
+// --- 7. UPLOAD ---
 document.getElementById('fileInput').addEventListener('change', async function() {
     const files = Array.from(this.files);
     if(files.length === 0) return;
     
     const statusMsg = document.getElementById('uploadStatus');
     const token = document.getElementById('githubToken').value;
-    if(!token) { alert("Please lock in your GitHub Token first."); return; }
+    if(!token) { alert("Please lock in your GitHub Token."); return; }
 
     for (const file of files) {
         statusMsg.innerHTML = `<span style="color:orange">Uploading ${file.name}...</span>`;
-        
-        // Size Limit Check
         const limitMB = (file.name.endsWith('.glb')) ? 50 : 25;
+        
         if (file.size / 1024 / 1024 > limitMB) {
-            statusMsg.innerHTML = `<span style="color:red">${file.name} is too large (> ${limitMB}MB). Skipping.</span>`;
-            continue;
+            alert(`${file.name} is too large (> ${limitMB}MB).`); continue;
         }
 
         const reader = new FileReader();
@@ -266,26 +246,23 @@ document.getElementById('fileInput').addEventListener('change', async function()
         reader.onload = async function() {
             const content = reader.result.split(',')[1];
             try {
-                // Check if exists (to get SHA for update)
                 let sha = null;
                 try {
                     const check = await githubRequest(`contents/${currentFolder}/${encodeURIComponent(file.name)}`, 'GET');
                     const json = await check.json();
                     sha = json.sha;
-                } catch(e) {} // 404 is fine
+                } catch(e) {}
 
                 const body = { message: `Upload ${file.name}`, content: content };
                 if(sha) body.sha = sha;
 
                 await githubRequest(`contents/${currentFolder}/${encodeURIComponent(file.name)}`, 'PUT', body);
-                
-            } catch(e) { console.error("Upload error", e); }
+            } catch(e) { console.error(e); }
         };
     }
     
-    // Quick refresh delay
     setTimeout(() => {
-        statusMsg.innerHTML = `<span style="color:#00ff00">Process Complete</span>`;
+        statusMsg.innerHTML = `<span style="color:#00ff00">Complete</span>`;
         loadFiles();
     }, 2000 * files.length + 1000);
 });
