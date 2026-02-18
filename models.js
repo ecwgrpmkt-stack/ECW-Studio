@@ -1,7 +1,7 @@
 // CONFIGURATION
 const REPO_OWNER = "ecwgrpmkt-stack";
-const REPO_NAME = "360_gallery";
-const MODEL_FOLDER = "models"; // Matches Admin folder
+const REPO_NAME = "ECW-Studio"; // UPDATED: Matches your screenshot
+const MODEL_FOLDER = "models";
 
 let models = []; 
 let currentIndex = 0;
@@ -11,23 +11,23 @@ const IDLE_DELAY = 3000;
 
 async function initShowroom() {
     const loader = document.getElementById('ecwLoader');
-    loader.classList.add('active');
+    if(loader) loader.classList.add('active');
 
     try {
+        // Fetch from the correct repo
         const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${MODEL_FOLDER}`);
         
-        // FIX: Handle Missing Folder Gracefully
         if (response.status === 404) {
-            throw new Error("No 'models' folder found. Please upload models via Admin.");
+            throw new Error(`Folder '${MODEL_FOLDER}' not found in repo '${REPO_NAME}'.`);
         }
         
-        if (!response.ok) throw new Error("API Error. Check Network.");
+        if (!response.ok) throw new Error("API Error. Check Network/Rate Limits.");
         const files = await response.json();
 
         // 1. Find GLB files
         const glbFiles = files.filter(f => f.name.toLowerCase().endsWith('.glb') && !f.name.startsWith('disabled_'));
 
-        if (glbFiles.length === 0) throw new Error("No 3D models available.");
+        if (glbFiles.length === 0) throw new Error("No 3D models (.glb) found in folder.");
 
         // 2. Link GLB + PNG
         models = glbFiles.map(glb => {
@@ -35,33 +35,33 @@ async function initShowroom() {
             const pngName = `${baseName}.png`;
             const posterFile = files.find(f => f.name === pngName);
             
-            // Name Formatting
+            // Name Formatting "ford_mustang_1965" -> "Ford Mustang 1965"
             let niceName = baseName.replace(/_/g, ' ').replace(/-/g, ' ');
-            let year = "Model";
-            const parts = niceName.split(' ');
-            if (!isNaN(parts[0])) { year = parts[0]; niceName = parts.slice(1).join(' '); }
+            // Capitalize Words
+            niceName = niceName.replace(/\b\w/g, l => l.toUpperCase());
 
             return {
                 src: glb.download_url,
                 poster: posterFile ? posterFile.download_url : 'https://placehold.co/400x300/222/FFF.png?text=No+Preview',
                 name: niceName,
-                year: year
+                // Extract year if it exists in the filename (e.g. 1965)
+                year: (niceName.match(/\d{4}/) || ["Model"])[0] 
             };
         });
 
-        // 3. Sort & Build
-        models.sort((a, b) => a.year.localeCompare(b.year));
+        // 3. Build UI
         buildThumbnails();
         loadModel(0);
         setupEvents();
 
     } catch (error) {
-        console.warn(error);
-        document.getElementById('infoName').innerText = "System Info";
-        document.getElementById('infoModel').innerText = error.message;
-        document.getElementById('infoYear').innerText = "⚠️";
+        console.error(error);
+        const infoName = document.getElementById('infoName');
+        const infoModel = document.getElementById('infoModel');
+        if(infoName) infoName.innerText = "System Error";
+        if(infoModel) infoModel.innerText = error.message;
     } finally {
-        setTimeout(() => loader.classList.remove('active'), 500);
+        if(loader) setTimeout(() => loader.classList.remove('active'), 500);
     }
 }
 
@@ -73,10 +73,13 @@ function loadModel(index) {
     document.getElementById('infoYear').innerText = data.year;
     document.getElementById('infoModel').innerText = "Exterior";
 
-    viewer.poster = data.poster; 
-    viewer.src = data.src;
-    viewer.alt = `3D Model of ${data.name}`;
-    viewer.autoRotate = true; 
+    // Set Viewer Attributes
+    if(viewer) {
+        viewer.poster = data.poster; 
+        viewer.src = data.src;
+        viewer.alt = `3D Model of ${data.name}`;
+        viewer.autoRotate = true; 
+    }
     
     updateThumbs();
     resetIdleTimer();
@@ -84,7 +87,9 @@ function loadModel(index) {
 
 function buildThumbnails() {
     const panel = document.getElementById("thumbPanel");
+    if(!panel) return;
     panel.innerHTML = "";
+    
     models.forEach((item, i) => {
         const thumb = document.createElement("img");
         thumb.src = item.poster;
@@ -102,34 +107,44 @@ function updateThumbs() {
 }
 
 function setupEvents() {
-    document.getElementById("prevBtn").onclick = () => {
+    const prev = document.getElementById("prevBtn");
+    const next = document.getElementById("nextBtn");
+    const fs = document.getElementById("fsBtn");
+
+    if(prev) prev.onclick = () => {
         currentIndex = (currentIndex - 1 + models.length) % models.length;
         loadModel(currentIndex);
     };
-    document.getElementById("nextBtn").onclick = () => {
+    if(next) next.onclick = () => {
         currentIndex = (currentIndex + 1) % models.length;
         loadModel(currentIndex);
     };
-    document.getElementById("fsBtn").onclick = () => {
+    if(fs) fs.onclick = () => {
         const app = document.getElementById("app");
         !document.fullscreenElement ? app.requestFullscreen() : document.exitFullscreen();
     };
 
-    viewer.addEventListener('camera-change', (e) => {
-        if (e.detail.source === 'user-interaction') stopAutoRotate();
-    });
+    if(viewer) {
+        viewer.addEventListener('camera-change', (e) => {
+            if (e.detail.source === 'user-interaction') stopAutoRotate();
+        });
+    }
 }
 
 function stopAutoRotate() {
+    if(!viewer) return;
     viewer.autoRotate = false;
-    document.getElementById('idleIndicator').classList.remove('visible');
+    const idle = document.getElementById('idleIndicator');
+    if(idle) idle.classList.remove('visible');
+    
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => { viewer.autoRotate = true; }, IDLE_DELAY);
 }
 
 function resetIdleTimer() {
     clearTimeout(idleTimer);
-    viewer.autoRotate = true;
+    if(viewer) viewer.autoRotate = true;
 }
 
+// Start
 initShowroom();
