@@ -9,17 +9,23 @@
 <body>
     <div id="app">
         
+        <canvas id="bgCanvas"></canvas>
+
         <div id="model-container">
             <model-viewer 
                 id="viewer3d" 
                 camera-controls 
                 auto-rotate 
                 shadow-intensity="1" 
+                shadow-softness="0.8"
+                exposure="1"
                 min-camera-orbit="auto 0deg auto" 
                 max-camera-orbit="auto 85deg auto"
                 min-field-of-view="10deg"
                 max-field-of-view="45deg"
                 interaction-prompt="none"
+                loading="eager" 
+                reveal="interaction"
                 src="" 
                 poster=""
                 alt="3D Vehicle Model">
@@ -32,23 +38,26 @@
         </div>
 
         <div id="vehicleInfoPanel">
-            <h1 id="infoName">Loading...</h1>
+            <h1 id="infoName">Loading Repository...</h1>
             <div class="info-sub">
-                <span id="infoYear">----</span> 
+                <span id="infoYear">ECW</span> 
                 <span class="divider">|</span> 
-                <span id="infoModel">----</span>
+                <span id="infoModel">Studio</span>
             </div>
         </div>
 
-        <div id="sidebar">
-            <div class="sidebar-title">Select Model</div>
-            <div id="thumbPanel"></div>
-        </div>
+        <div id="dockContainer">
+            
+            <button id="fsBtn" title="Fullscreen">⛶</button>
 
-        <div id="controls">
-            <button id="prevBtn">◀</button>
-            <button id="fsBtn">⛶</button>
-            <button id="nextBtn">▶</button>
+            <div class="thumbnail-bar">
+                <button id="prevBtn" class="nav-btn">◀</button>
+                
+                <div id="thumbPanel" class="thumb-scroll-area">
+                    </div>
+
+                <button id="nextBtn" class="nav-btn">▶</button>
+            </div>
         </div>
         
         <div id="idleIndicator">
@@ -63,5 +72,6 @@
 
     </div>
     <script src="models.js"></script>
+    <script src="particles.js"></script>
 </body>
 </html>
