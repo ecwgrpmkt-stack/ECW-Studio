@@ -8,7 +8,6 @@ const ColorEngine = {
     groups: {},
     dock: null,
 
-    // Math Helpers
     rgbToHsl(r, g, b) {
         let max = Math.max(r, g, b), min = Math.min(r, g, b);
         let h, s, l = (max + min) / 2;
@@ -49,7 +48,6 @@ const ColorEngine = {
 
     clamp(val, min, max) { return Math.min(Math.max(val, min), max); },
 
-    // Analyzer
     analyze(viewer) {
         this.viewer = viewer;
         this.dock = document.getElementById('colorEditorDock');
@@ -101,7 +99,6 @@ const ColorEngine = {
         this.buildUI();
     },
 
-    // UI Builder with Accordion Logic
     buildUI() {
         if (!this.dock) return;
         
@@ -124,7 +121,6 @@ const ColorEngine = {
             
             const hexColor = `#${Math.round(avgR*255).toString(16).padStart(2,'0')}${Math.round(avgG*255).toString(16).padStart(2,'0')}${Math.round(avgB*255).toString(16).padStart(2,'0')}`;
 
-            // Determine if collapsed by default
             const isCollapsed = groupName.includes('Blacks') || groupName.includes('Whites');
 
             const section = document.createElement('div');
@@ -153,20 +149,17 @@ const ColorEngine = {
                 </div>
             `;
             
-            // Accordion Toggle Event
             const header = section.querySelector('.ce-header');
             header.addEventListener('click', (e) => {
                 if (e.target.classList.contains('ce-reset')) return;
                 section.classList.toggle('collapsed');
             });
 
-            // Slider Events
             const inputs = section.querySelectorAll('input');
             inputs.forEach(input => {
                 input.addEventListener('input', () => this.applyColor(groupName, section));
             });
 
-            // Reset Event
             const resetBtn = section.querySelector('.ce-reset');
             resetBtn.addEventListener('click', (e) => {
                 e.stopPropagation(); 
@@ -181,7 +174,6 @@ const ColorEngine = {
         this.dock.classList.add('active');
     },
 
-    // Apply Color
     applyColor(groupName, section) {
         const hueShift = parseFloat(section.querySelector('[data-type="hue"]').value) / 360;
         const satShift = parseFloat(section.querySelector('[data-type="sat"]').value) / 100;
