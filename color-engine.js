@@ -8,7 +8,6 @@ const ColorEngine = {
     groups: {},
     dock: null,
 
-    // 1. Math Helpers
     rgbToHsl(r, g, b) {
         let max = Math.max(r, g, b), min = Math.min(r, g, b);
         let h, s, l = (max + min) / 2;
@@ -47,11 +46,8 @@ const ColorEngine = {
         return [r, g, b];
     },
 
-    clamp(val, min, max) {
-        return Math.min(Math.max(val, min), max);
-    },
+    clamp(val, min, max) { return Math.min(Math.max(val, min), max); },
 
-    // 2. Analyzer
     analyze(viewer) {
         this.viewer = viewer;
         this.dock = document.getElementById('colorEditorDock');
@@ -103,7 +99,6 @@ const ColorEngine = {
         this.buildUI();
     },
 
-    // 3. UI Builder
     buildUI() {
         this.dock.innerHTML = '<div class="ce-title">Material Tuner</div>';
         
@@ -111,14 +106,12 @@ const ColorEngine = {
             const groupMats = this.groups[groupName];
             if (groupMats.length === 0) return;
 
-            // Calculate average original color
             let avgR = 0, avgG = 0, avgB = 0;
             groupMats.forEach(m => { avgR += m.originalRgb[0]; avgG += m.originalRgb[1]; avgB += m.originalRgb[2]; });
             avgR /= groupMats.length; avgG /= groupMats.length; avgB /= groupMats.length;
             
             const hexColor = `#${Math.round(avgR*255).toString(16).padStart(2,'0')}${Math.round(avgG*255).toString(16).padStart(2,'0')}${Math.round(avgB*255).toString(16).padStart(2,'0')}`;
             
-            // Initial RGB integers for the readout
             const initialR = Math.round(groupMats[0].originalRgb[0] * 255);
             const initialG = Math.round(groupMats[0].originalRgb[1] * 255);
             const initialB = Math.round(groupMats[0].originalRgb[2] * 255);
@@ -149,7 +142,6 @@ const ColorEngine = {
                 <div class="ce-rgb-readout">RGB(${initialR}, ${initialG}, ${initialB})</div>
             `;
             
-            // Events
             const inputs = section.querySelectorAll('input');
             inputs.forEach(input => {
                 input.addEventListener('input', () => this.applyColor(groupName, section));
@@ -168,7 +160,6 @@ const ColorEngine = {
         this.dock.classList.add('active');
     },
 
-    // 4. Color Applier & Inline RGB Update
     applyColor(groupName, section) {
         const hueShift = parseFloat(section.querySelector('[data-type="hue"]').value) / 360;
         const satShift = parseFloat(section.querySelector('[data-type="sat"]').value) / 100;
@@ -194,7 +185,6 @@ const ColorEngine = {
 
             m.mat.pbrMetallicRoughness.setBaseColorFactor([r, g, b, m.originalRgb[3]]);
 
-            // Capture final RGB of the primary material for the text readout
             if (index === 0) {
                 displayR = Math.round(r * 255);
                 displayG = Math.round(g * 255);
@@ -202,7 +192,6 @@ const ColorEngine = {
             }
         });
 
-        // Update the plain text element dynamically
         const readout = section.querySelector('.ce-rgb-readout');
         if (readout) {
             readout.innerText = `RGB(${displayR}, ${displayG}, ${displayB})`;
