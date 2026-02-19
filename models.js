@@ -26,10 +26,10 @@ async function initShowroom() {
         
         const files = await response.json();
         
-        // Loosened filter to catch missing .glb extensions just in case
+        // Loosened filter to catch missing .glb extensions
         const modelFiles = files.filter(f => 
-            (f.name.toLowerCase().endsWith('.glb') || f.name.toLowerCase().includes('tone')) 
-            && !f.name.startsWith('disabled_')
+            (f.name.toLowerCase().endsWith('.glb') || f.name.toLowerCase().includes('tone') || f.name.toLowerCase().includes('toyota')) 
+            && !f.name.startsWith('disabled_') && !f.name.endsWith('.png')
         );
 
         if (modelFiles.length === 0) throw new Error("No 3D models found.");
@@ -63,7 +63,6 @@ async function initShowroom() {
         if (otherModel) { otherModel.variant = "Other"; models.push(otherModel); }
 
         if (models.length === 0) {
-            // Failsafe if regex misses everything
             tempModels[0].variant = "Model 1";
             models.push(tempModels[0]);
         }
@@ -71,17 +70,33 @@ async function initShowroom() {
         startApp();
 
     } catch (error) {
-        console.warn("API Failed, using Hardcoded Fallback...", error);
-        document.getElementById('infoName').innerText = "API LIMIT REACHED";
+        console.warn("API Failed or Rate Limited. Using Hardcoded Fallback Models...", error);
+        if(document.getElementById('infoName')) document.getElementById('infoName').innerText = "API LIMIT REACHED";
         
-        // Updated fallback to match current repo contents
-        models = [{
-            src: "https://raw.githubusercontent.com/ecwgrpmkt-stack/ECW-Studio/main/models/Toyota%20H300%20Single%20Tone.glb",
-            poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
-            name: "Toyota H300 Single Tone",
-            year: "Model",
-            variant: "Single Tone"
-        }];
+        // Exact fallback mapped to your GitHub repository contents
+        models = [
+            {
+                src: "https://raw.githubusercontent.com/ecwgrpmkt-stack/ECW-Studio/main/models/Toyota%20H300%20Single%20Tone.glb",
+                poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
+                name: "Toyota H300 Single Tone",
+                year: "Model",
+                variant: "Single Tone"
+            },
+            {
+                src: "https://raw.githubusercontent.com/ecwgrpmkt-stack/ECW-Studio/main/models/Toyota%20H300%20Two%20Tone",
+                poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
+                name: "Toyota H300 Two Tone",
+                year: "Model",
+                variant: "Two Tone"
+            },
+            {
+                src: "https://raw.githubusercontent.com/ecwgrpmkt-stack/ECW-Studio/main/models/toyota_corolla_levin_ae92_gt_apex_kouki.glb",
+                poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
+                name: "Toyota Corolla Levin",
+                year: "Model",
+                variant: "Other"
+            }
+        ];
         startApp();
     } finally {
         if(loader) setTimeout(() => loader.classList.remove('active'), 300);
@@ -89,7 +104,7 @@ async function initShowroom() {
 }
 
 function startApp() {
-    currentIndex = 0; // Always start at index 0 of the mapped array
+    currentIndex = 0; 
     buildVariantButtons();
     loadModelData(currentIndex);
     setupEvents();
@@ -121,7 +136,7 @@ function updateVariantButtons() {
     });
 }
 
-// --- TRANSITIONS & CACHE ---
+// --- TRANSITIONS & ADVANCED FETCHING ---
 function transitionToModel(index) {
     if (index === currentIndex) return;
 
@@ -171,23 +186,47 @@ async function loadModelData(index) {
         }
 
         try {
-            const cache = await caches.open('ecw-3d-models-v1');
-            const cachedResponse = await cache.match(data.src);
+            let finalBlob = null;
 
-            if (cachedResponse) {
-                const blob = await cachedResponse.blob();
-                currentBlobUrl = URL.createObjectURL(blob);
+            // 1. Safe Cache Check
+            if ('caches' in window) {
+                const cache = await caches.open('ecw-3d-models-v1');
+                const cachedResponse = await cache.match(data.src);
+
+                if (cachedResponse) {
+                    finalBlob = await cachedResponse.blob();
+                } else {
+                    const res = await fetch(data.src, { mode: 'cors' });
+                    if (res.ok) {
+                        finalBlob = await res.blob();
+                        // Force correct MIME type regardless of missing extensions
+                        finalBlob = new Blob([finalBlob], { type: 'model/gltf-binary' });
+                        cache.put(data.src, new Response(finalBlob));
+                    }
+                }
+            } else {
+                // No cache API available (e.g. running file:// locally)
+                const res = await fetch(data.src, { mode: 'cors' });
+                if (res.ok) {
+                    finalBlob = await res.blob();
+                }
+            }
+
+            // 2. Apply Blob to Viewer (FIXES MISSING .GLB BUG)
+            if (finalBlob) {
+                const glbBlob = new Blob([finalBlob], { type: 'model/gltf-binary' });
+                currentBlobUrl = URL.createObjectURL(glbBlob);
                 viewer.src = currentBlobUrl;
             } else {
                 viewer.src = data.src;
-                fetch(data.src, { mode: 'cors' })
-                    .then(res => { if(res.ok) cache.put(data.src, res.clone()); })
-                    .catch(e => console.warn("Cache save ignored"));
             }
+
         } catch (e) {
+            console.warn("Blob fetch failed, falling back to basic URL", e);
             viewer.src = data.src;
         }
         
+        // Restore orbit
         if (savedOrbit) {
             viewer.cameraOrbit = `${savedOrbit.theta}rad ${savedOrbit.phi}rad auto`;
         } else {
@@ -206,15 +245,21 @@ function preloadNextModel() {
         const img = new Image();
         img.src = nextModel.poster;
 
-        caches.open('ecw-3d-models-v1').then(cache => {
-            cache.match(nextModel.src).then(cachedResponse => {
-                if (!cachedResponse) {
-                    fetch(nextModel.src, { mode: 'cors', priority: 'low' })
-                        .then(res => { if(res.ok) cache.put(nextModel.src, res.clone()); })
-                        .catch(() => {});
-                }
-            });
-        }).catch(() => {});
+        if ('caches' in window) {
+            caches.open('ecw-3d-models-v1').then(cache => {
+                cache.match(nextModel.src).then(cachedResponse => {
+                    if (!cachedResponse) {
+                        fetch(nextModel.src, { mode: 'cors', priority: 'low' })
+                            .then(res => res.blob())
+                            .then(blob => {
+                                const glbBlob = new Blob([blob], { type: 'model/gltf-binary' });
+                                cache.put(nextModel.src, new Response(glbBlob));
+                            })
+                            .catch(() => {});
+                    }
+                });
+            }).catch(() => {});
+        }
     }
 }
 
@@ -239,7 +284,7 @@ function setupEvents() {
                 clearTimeout(colorEngineTimer);
                 colorEngineTimer = setTimeout(() => {
                     try { ColorEngine.analyze(viewer); } 
-                    catch(e) { console.error("ColorEngine Error:", e); }
+                    catch(e) { console.error("ColorEngine Crash Prevented:", e); }
                 }, 400); 
             }
         });
