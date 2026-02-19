@@ -169,7 +169,7 @@ const ColorEngine = {
             // Reset Event
             const resetBtn = section.querySelector('.ce-reset');
             resetBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
+                e.stopPropagation(); 
                 inputs.forEach(input => input.value = 0);
                 this.applyColor(groupName, section);
             });
