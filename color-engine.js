@@ -156,7 +156,6 @@ const ColorEngine = {
             // Accordion Toggle Event
             const header = section.querySelector('.ce-header');
             header.addEventListener('click', (e) => {
-                // Prevent toggle if the reset button was clicked
                 if (e.target.classList.contains('ce-reset')) return;
                 section.classList.toggle('collapsed');
             });
@@ -170,7 +169,7 @@ const ColorEngine = {
             // Reset Event
             const resetBtn = section.querySelector('.ce-reset');
             resetBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Stop accordion toggle
+                e.stopPropagation();
                 inputs.forEach(input => input.value = 0);
                 this.applyColor(groupName, section);
             });
@@ -182,7 +181,7 @@ const ColorEngine = {
         this.dock.classList.add('active');
     },
 
-    // Apply Color (RGB readout logic removed)
+    // Apply Color
     applyColor(groupName, section) {
         const hueShift = parseFloat(section.querySelector('[data-type="hue"]').value) / 360;
         const satShift = parseFloat(section.querySelector('[data-type="sat"]').value) / 100;
