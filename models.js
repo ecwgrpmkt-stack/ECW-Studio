@@ -131,7 +131,7 @@ function updateThumbs() {
     const thumbs = document.querySelectorAll(".thumb");
     thumbs.forEach((t, i) => {
         t.classList.toggle("active", i === currentIndex);
-        // This line guarantees the active thumbnail forces the container to scroll to it horizontally
+        // Ensure horizontal scrolling tracks the active thumbnail
         if(i === currentIndex) {
             t.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
         }
