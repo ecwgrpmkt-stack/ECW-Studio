@@ -14,7 +14,6 @@ const IDLE_DELAY = 3000;
 const SLIDE_DELAY = 60000;     
 let colorEngineTimer = null;   
 
-// STATE
 let savedOrbit = null; 
 
 async function initShowroom() {
@@ -24,8 +23,7 @@ async function initShowroom() {
     try {
         const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${MODEL_FOLDER}`);
         
-        if (response.status === 404) throw new Error("Models folder not found.");
-        if (!response.ok) throw new Error("GitHub API Error.");
+        if (!response.ok) throw new Error("GitHub API Error (Rate Limit likely).");
         
         const files = await response.json();
         const glbFiles = files.filter(f => f.name.toLowerCase().endsWith('.glb') && !f.name.startsWith('disabled_'));
@@ -48,20 +46,34 @@ async function initShowroom() {
             };
         });
 
-        buildThumbnails();
-        loadModelData(0);
-        setupEvents();
+        startApp();
 
     } catch (error) {
-        console.error(error);
-        if(document.getElementById('infoName')) document.getElementById('infoName').innerText = "ERROR";
+        console.warn("API Failed, using Hardcoded Fallback Models so the app keeps working...", error);
+        document.getElementById('infoName').innerText = "API LIMIT REACHED";
+        
+        // FAILSAFE BACKUP: Ensures UI never breaks during testing limits
+        models = [
+            {
+                src: "https://raw.githubusercontent.com/ecwgrpmkt-stack/ECW-Studio/main/models/ford_mustang_1965.glb",
+                poster: "https://raw.githubusercontent.com/ecwgrpmkt-stack/ECW-Studio/main/models/ford_mustang_1965.png",
+                name: "Ford Mustang 1965 (Backup)",
+                year: "1965"
+            }
+        ];
+        startApp();
     } finally {
         if(loader) setTimeout(() => loader.classList.remove('active'), 500);
-        startTimers(); 
     }
 }
 
-// --- TRANSITION LOGIC ---
+function startApp() {
+    buildThumbnails();
+    loadModelData(0);
+    setupEvents();
+    startTimers(); 
+}
+
 function transitionToModel(index) {
     const fadeOverlay = document.getElementById('fadeOverlay');
     const loader = document.getElementById('ecwLoader');
@@ -77,8 +89,10 @@ function transitionToModel(index) {
     loader.classList.add('active'); 
 
     setTimeout(() => {
-        currentIndex = index;
-        loadModelData(currentIndex);
+        try {
+            currentIndex = index;
+            loadModelData(currentIndex);
+        } catch(e) { console.error(e); }
 
         setTimeout(() => {
             fadeOverlay.classList.remove('active');
@@ -136,14 +150,9 @@ function updateThumbs() {
     });
 }
 
-// --- IDLE & INTERACTION LOGIC ---
 function setupEvents() {
-    document.getElementById("prevBtn").onclick = () => {
-        transitionToModel((currentIndex - 1 + models.length) % models.length);
-    };
-    document.getElementById("nextBtn").onclick = () => {
-        transitionToModel((currentIndex + 1) % models.length);
-    };
+    document.getElementById("prevBtn").onclick = () => transitionToModel((currentIndex - 1 + models.length) % models.length);
+    document.getElementById("nextBtn").onclick = () => transitionToModel((currentIndex + 1) % models.length);
     document.getElementById("fsBtn").onclick = () => {
         const app = document.getElementById("app");
         !document.fullscreenElement ? app.requestFullscreen() : document.exitFullscreen();
@@ -158,10 +167,14 @@ function setupEvents() {
             }
         });
 
+        // Robust Hook: Waits slightly to ensure materials are fully built in memory
         viewer.addEventListener('load', () => {
             if (typeof ColorEngine !== 'undefined') {
                 clearTimeout(colorEngineTimer);
-                colorEngineTimer = setTimeout(() => ColorEngine.analyze(viewer), 500);
+                colorEngineTimer = setTimeout(() => {
+                    try { ColorEngine.analyze(viewer); } 
+                    catch(e) { console.error("ColorEngine Crash Prevented:", e); }
+                }, 800);
             }
         });
     }
