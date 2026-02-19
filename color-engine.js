@@ -77,7 +77,7 @@ const ColorEngine = {
         let color1 = [], color2 = [];
         if (others.length > 0) {
             let buckets = Array(12).fill(0).map(() => []);
-            others.forEach(m => buckets[Math.floor(m.hsl[0] * 11.99)].push(m));
+            others.forEach(m => buckets[Math.floor(m.hsl[0] * 11.99) || 0].push(m));
             buckets.sort((a, b) => b.length - a.length);
             
             color1 = buckets[0] || [];
@@ -100,6 +100,16 @@ const ColorEngine = {
     },
 
     buildUI() {
+        if (!this.dock) return;
+        
+        // Failsafe: If model has no editable colors
+        if (Object.keys(this.groups).every(k => this.groups[k].length === 0)) {
+            this.dock.innerHTML = '<div class="ce-title">Material Tuner</div><div style="padding:10px;color:#888;font-size:0.8rem;text-align:center;">No editable colors detected on this model.</div>';
+            this.dock.classList.remove('hidden');
+            this.dock.classList.add('active');
+            return;
+        }
+
         this.dock.innerHTML = '<div class="ce-title">Material Tuner</div>';
         
         Object.keys(this.groups).forEach(groupName => {
