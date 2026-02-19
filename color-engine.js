@@ -1,6 +1,5 @@
 /**
  * ECW Studio - Real-Time Material Color Engine
- * Analyzes .glb materials, groups them by color space, and provides a UI to adjust HSL/Contrast.
  */
 
 const ColorEngine = {
@@ -63,7 +62,6 @@ const ColorEngine = {
         
         let blacks = [], whites = [], others = [];
 
-        // Extract and categorize
         materials.forEach((mat, index) => {
             if (!mat.pbrMetallicRoughness) return;
             const baseColor = mat.pbrMetallicRoughness.baseColorFactor;
@@ -71,25 +69,23 @@ const ColorEngine = {
 
             const [r, g, b, a] = baseColor;
             const hsl = this.rgbToHsl(r, g, b);
-            const matData = { index, mat, originalRgb: [r, g, b, a], hsl };
             
+            // Store original state for flawless resets
+            const matData = { index, mat, originalRgb: [r, g, b, a], hsl };
             this.materialsData.push(matData);
 
-            // Grouping Logic
             if (hsl[2] < 0.25) { blacks.push(matData); } 
             else if (hsl[2] > 0.7 && hsl[1] < 0.2) { whites.push(matData); } 
             else { others.push(matData); }
         });
 
-        // Find top 2 dominant colors from 'others' by bucketing Hue
         let color1 = [], color2 = [];
         if (others.length > 0) {
-            let buckets = Array(12).fill(0).map(() => []); // 12 hue buckets
+            let buckets = Array(12).fill(0).map(() => []);
             others.forEach(m => buckets[Math.floor(m.hsl[0] * 11.99)].push(m));
             buckets.sort((a, b) => b.length - a.length);
             
             color1 = buckets[0] || [];
-            // Find second dominant color that is visually distinct
             for (let i = 1; i < buckets.length; i++) {
                 if (buckets[i].length > 0 && Math.abs(buckets[i][0].hsl[0] - color1[0].hsl[0]) > 0.15) {
                     color2 = buckets[i];
@@ -108,15 +104,14 @@ const ColorEngine = {
         this.buildUI();
     },
 
-    // 3. UI Builder
+    // 3. UI Builder (With Ticks & Reset)
     buildUI() {
         this.dock.innerHTML = '<div class="ce-title">Material Tuner</div>';
         
         Object.keys(this.groups).forEach(groupName => {
             const groupMats = this.groups[groupName];
-            if (groupMats.length === 0) return; // Skip empty groups
+            if (groupMats.length === 0) return;
 
-            // Calculate average color for swatch
             let avgR = 0, avgG = 0, avgB = 0;
             groupMats.forEach(m => { avgR += m.originalRgb[0]; avgG += m.originalRgb[1]; avgB += m.originalRgb[2]; });
             avgR /= groupMats.length; avgG /= groupMats.length; avgB /= groupMats.length;
@@ -125,24 +120,43 @@ const ColorEngine = {
             const section = document.createElement('div');
             section.className = 'ce-section';
             
-            // Header with swatch
             section.innerHTML = `
                 <div class="ce-header">
                     <div class="ce-swatch" style="background-color: ${hexColor}"></div>
                     <span>${groupName}</span>
+                    <button class="ce-reset" title="Restore Original">↺</button>
                 </div>
                 <div class="ce-sliders">
-                    <label>Hue <input type="range" data-type="hue" data-group="${groupName}" min="-180" max="180" value="0"></label>
-                    <label>Sat <input type="range" data-type="sat" data-group="${groupName}" min="-100" max="100" value="0"></label>
-                    <label>Bri <input type="range" data-type="bri" data-group="${groupName}" min="-100" max="100" value="0"></label>
-                    <label>Con <input type="range" data-type="con" data-group="${groupName}" min="-100" max="100" value="0"></label>
+                    <div class="ce-slider-row">
+                        <span>Hue</span>
+                        <div class="range-wrap"><div class="range-tick"></div><input type="range" data-type="hue" min="-180" max="180" value="0"></div>
+                    </div>
+                    <div class="ce-slider-row">
+                        <span>Sat</span>
+                        <div class="range-wrap"><div class="range-tick"></div><input type="range" data-type="sat" min="-100" max="100" value="0"></div>
+                    </div>
+                    <div class="ce-slider-row">
+                        <span>Bri</span>
+                        <div class="range-wrap"><div class="range-tick"></div><input type="range" data-type="bri" min="-100" max="100" value="0"></div>
+                    </div>
+                    <div class="ce-slider-row">
+                        <span>Con</span>
+                        <div class="range-wrap"><div class="range-tick"></div><input type="range" data-type="con" min="-100" max="100" value="0"></div>
+                    </div>
                 </div>
             `;
             
-            // Attach Events
+            // Events for sliders
             const inputs = section.querySelectorAll('input');
             inputs.forEach(input => {
                 input.addEventListener('input', () => this.applyColor(groupName, section));
+            });
+
+            // Event for Reset Button
+            const resetBtn = section.querySelector('.ce-reset');
+            resetBtn.addEventListener('click', () => {
+                inputs.forEach(input => input.value = 0); // Reset UI to 0
+                this.applyColor(groupName, section);      // Re-apply (restores original)
             });
 
             this.dock.appendChild(section);
@@ -152,39 +166,33 @@ const ColorEngine = {
         this.dock.classList.add('active');
     },
 
-    // 4. Math Applier
+    // 4. Color Applier
     applyColor(groupName, section) {
         const hueShift = parseFloat(section.querySelector('[data-type="hue"]').value) / 360;
         const satShift = parseFloat(section.querySelector('[data-type="sat"]').value) / 100;
         const briShift = parseFloat(section.querySelector('[data-type="bri"]').value) / 100;
-        const conShift = parseFloat(section.querySelector('[data-type="con"]').value); // -100 to 100
+        const conShift = parseFloat(section.querySelector('[data-type="con"]').value); 
 
-        // Contrast Factor Formula
         const C = conShift * 2.55; 
         const factor = (259 * (C + 255)) / (255 * (259 - C));
 
         const groupMats = this.groups[groupName];
 
         groupMats.forEach(m => {
-            // 1. Shift HSL
             let [h, s, l] = m.hsl;
             h = (h + hueShift + 1) % 1; 
             s = this.clamp(s + satShift, 0, 1);
             
-            // Convert back to RGB for Brightness & Contrast
             let [r, g, b] = this.hslToRgb(h, s, l);
 
-            // 2. Apply Contrast
             r = factor * (r - 0.5) + 0.5;
             g = factor * (g - 0.5) + 0.5;
             b = factor * (b - 0.5) + 0.5;
 
-            // 3. Apply Brightness
             r = this.clamp(r + briShift, 0, 1);
             g = this.clamp(g + briShift, 0, 1);
             b = this.clamp(b + briShift, 0, 1);
 
-            // 4. Update Model
             m.mat.pbrMetallicRoughness.setBaseColorFactor([r, g, b, m.originalRgb[3]]);
         });
     },
@@ -196,5 +204,6 @@ const ColorEngine = {
             this.dock.innerHTML = '';
         }
         this.groups = {};
+        this.materialsData = [];
     }
 };
