@@ -62,7 +62,6 @@ async function initShowroom() {
 }
 
 // --- TRANSITION LOGIC ---
-
 function transitionToModel(index) {
     const fadeOverlay = document.getElementById('fadeOverlay');
     const loader = document.getElementById('ecwLoader');
@@ -131,7 +130,6 @@ function updateThumbs() {
     const thumbs = document.querySelectorAll(".thumb");
     thumbs.forEach((t, i) => {
         t.classList.toggle("active", i === currentIndex);
-        // Ensure horizontal scrolling tracks the active thumbnail
         if(i === currentIndex) {
             t.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
         }
@@ -139,7 +137,6 @@ function updateThumbs() {
 }
 
 // --- IDLE & INTERACTION LOGIC ---
-
 function setupEvents() {
     document.getElementById("prevBtn").onclick = () => {
         transitionToModel((currentIndex - 1 + models.length) % models.length);
