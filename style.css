@@ -1,17 +1,47 @@
 /* =========================================
    1. GLOBAL RESET
    ========================================= */
-html, body { margin: 0; height: 100%; background: #050505; font-family: 'Helvetica Neue', Arial, sans-serif; overflow: hidden; color: white; }
+html, body { 
+    margin: 0; padding: 0; height: 100%; 
+    background: #050505; font-family: 'Helvetica Neue', Arial, sans-serif; 
+    overflow: hidden; color: white; 
+}
+
 #app { display: flex; height: 100%; width: 100%; position: relative; }
+
 .showroom-mode { background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); }
-#bgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000 100%); }
+
+/* Background Canvas (Landing Page Only) */
+#bgCanvas { 
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+    z-index: -1; /* CRITICAL FIX: Forces canvas strictly behind all content */
+    pointer-events: none; background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000 100%); 
+}
 
 /* =========================================
-   2. LANDING PAGE BRANDING
+   2. LANDING PAGE BRANDING (Fixed Visibility)
    ========================================= */
+body.landing-body { position: relative; width: 100%; height: 100%; }
+
+.top-bar-right { position: absolute; top: 30px; right: 40px; z-index: 20; }
+.admin-login-trigger { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); color: #888; padding: 10px 20px; border-radius: 30px; cursor: pointer; font-size: 0.85rem; transition: all 0.3s ease; backdrop-filter: blur(5px); text-transform: uppercase; letter-spacing: 1px; }
+.admin-login-trigger:hover { border-color: #ff3333; color: white; background: rgba(255, 51, 51, 0.1); box-shadow: 0 0 15px rgba(255, 51, 51, 0.3); }
+
+.hero-container { height: 100vh; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center; position: relative; z-index: 10; }
 .hero-brand { font-size: 4.5rem; font-weight: 900; color: #fff; letter-spacing: 2px; margin-bottom: 0; line-height: 1; text-transform: uppercase; text-shadow: 0 10px 30px rgba(0,0,0,0.5); }
 .hero-brand span { color: #ff3333; }
 .hero-content h1 { font-size: 0.9rem; margin: 15px 0 60px 0; color: #666; letter-spacing: 3px; font-weight: 400; text-transform: uppercase; }
+
+.hero-cards { display: flex; gap: 40px; justify-content: center; }
+.hero-card { text-decoration: none; width: 280px; height: 340px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; position: relative; overflow: hidden; transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+.hero-card:hover { transform: translateY(-15px); border-color: #ff3333; background: rgba(255, 51, 51, 0.05); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); }
+.card-inner { padding: 30px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.card-icon-svg { width: 80px; height: 80px; color: #555; transition: all 0.4s ease; }
+.card-icon-svg svg { width: 100%; height: 100%; filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.05)); }
+.hero-card:hover .card-icon-svg { color: #ff3333; transform: scale(1.1); filter: drop-shadow(0 0 15px rgba(255, 51, 51, 0.5)); }
+.hero-card h2 { color: white; margin: 0; font-size: 1.5rem; letter-spacing: 1px; font-weight: 700; }
+.btn-text { color: #ff3333; font-weight: bold; font-size: 0.85rem; text-transform: uppercase; opacity: 0; transform: translateY(20px); transition: all 0.4s ease; letter-spacing: 2px; }
+.hero-card:hover .btn-text { opacity: 1; transform: translateY(0); }
 
 /* =========================================
    3. 3D SHOWROOM UI
@@ -30,17 +60,6 @@ model-viewer { width: 100%; height: 100%; --poster-color: transparent; backgroun
 #infoName { margin: 0; font-size: 2rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; line-height: 1; }
 #infoYear { margin: 5px 0 0 0; font-size: 1.2rem; font-weight: 300; color: #ff3333; letter-spacing: 1px; }
 
-/* NEW: Top Middle Live RGB Display */
-.live-color-display {
-    position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
-    background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-    padding: 10px 20px; color: white; font-weight: bold; font-size: 1rem;
-    letter-spacing: 1px; z-index: 100; pointer-events: none;
-    opacity: 0; transition: opacity 0.3s ease; box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-}
-.live-color-display.active { opacity: 1; }
-
 #bottomDock { position: absolute; bottom: 30px; left: 0; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; z-index: 100; pointer-events: none; gap: 15px; }
 .fs-wrapper { pointer-events: auto; }
 #fsBtn { width: 50px; height: 50px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.6); color: white; font-size: 1.4rem; cursor: pointer; backdrop-filter: blur(10px); transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
@@ -50,37 +69,22 @@ model-viewer { width: 100%; height: 100%; --poster-color: transparent; backgroun
 .nav-arrow { background: transparent; border: none; color: #fff; font-size: 1.2rem; cursor: pointer; padding: 10px; opacity: 0.5; transition: all 0.2s; }
 .nav-arrow:hover { opacity: 1; color: #ff3333; }
 
-/* HORIZONTAL SCROLL AREA (Max 5 Thumbnails: 5*90px + 4*12px gap = ~498px) */
-.thumb-scroll-area { 
-    display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; 
-    overflow-x: auto; overflow-y: hidden; scroll-behavior: smooth; 
-    max-width: 498px; /* Strict 5-item width */
-    padding: 5px 2px; scrollbar-width: none; 
-}
+.thumb-scroll-area { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; overflow-x: auto; overflow-y: hidden; scroll-behavior: smooth; max-width: 498px; padding: 5px 2px; scrollbar-width: none; }
 .thumb-scroll-area::-webkit-scrollbar { display: none; }
 .thumb { width: 90px; height: 60px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; opacity: 0.5; cursor: pointer; background: #111; flex-shrink: 0; transition: all 0.3s; }
 .thumb:hover { opacity: 1; transform: translateY(-4px); }
 .thumb.active { border-color: #fff; opacity: 1; transform: scale(1.05); }
 
 /* =========================================
-   4. COLOR EDITOR DOCK
+   4. COLOR EDITOR DOCK (Inline Plain RGB Text)
    ========================================= */
-.color-editor-dock {
-    position: absolute; left: 30px; top: 50%; transform: translateY(-50%);
-    width: 260px; background: rgba(20, 20, 20, 0.6); backdrop-filter: blur(15px);
-    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px;
-    padding: 20px; z-index: 110; display: flex; flex-direction: column; gap: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5); pointer-events: auto;
-    opacity: 0; visibility: hidden; transition: opacity 0.4s ease;
-    max-height: 70vh; overflow-y: auto; 
-}
+.color-editor-dock { position: absolute; left: 30px; top: 50%; transform: translateY(-50%); width: 260px; background: rgba(20, 20, 20, 0.6); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 20px; z-index: 110; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); pointer-events: auto; opacity: 0; visibility: hidden; transition: opacity 0.4s ease; max-height: 70vh; overflow-y: auto; }
 .color-editor-dock::-webkit-scrollbar { width: 4px; }
 .color-editor-dock::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
 .color-editor-dock.active { opacity: 1; visibility: visible; }
 
 .ce-title { font-size: 0.8rem; text-transform: uppercase; font-weight: bold; color: #ff3333; letter-spacing: 2px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
 .ce-section { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.05); }
-
 .ce-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-size: 0.75rem; font-weight: bold; color: #ccc; text-transform: uppercase; }
 .ce-swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); }
 .ce-reset { margin-left: auto; background: transparent; border: 1px solid #444; color: #aaa; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.8rem; transition: 0.2s; }
@@ -92,6 +96,16 @@ model-viewer { width: 100%; height: 100%; --poster-color: transparent; backgroun
 .range-tick { position: absolute; left: 50%; top: -4px; width: 2px; height: 10px; background: #666; transform: translateX(-50%); pointer-events: none; z-index: 0; }
 .range-wrap input[type="range"] { width: 100%; height: 3px; -webkit-appearance: none; background: rgba(255,255,255,0.2); border-radius: 2px; outline: none; position: relative; z-index: 1; }
 .range-wrap input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #ff3333; cursor: pointer; border: 2px solid #222; }
+
+/* Plain text RGB Readout */
+.ce-rgb-readout {
+    font-size: 0.75rem;
+    color: #999;
+    text-align: center;
+    margin-top: 10px;
+    font-family: monospace;
+    letter-spacing: 1px;
+}
 
 /* =========================================
    5. LOADERS & IDLE INDICATORS
@@ -111,7 +125,6 @@ model-viewer { width: 100%; height: 100%; --poster-color: transparent; backgroun
 /* =========================================
    6. ADMIN, LOGIN, & GALLERY FALLBACKS
    ========================================= */
-/* Include Admin/Login styles intact */
 .login-container { width: 100%; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
 .access-split { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
 .access-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 30px; border-radius: 12px; width: 300px; text-align: center; transition: transform 0.3s; }
@@ -129,10 +142,11 @@ body.admin-body { overflow: auto; background: #0d0d0d; }
 .admin-nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; background: #111; border-bottom: 1px solid #333; }
 .logo { font-weight: bold; font-size: 1.5rem; }
 .logo span { color: #ff3333; }
-.logout-btn { background: none; border: 1px solid #444; color: #aaa; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+.logout-btn { background: none; border: 1px solid #444; color: #aaa; padding: 8px 16px; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+.logout-btn:hover { border-color: #ff3333; color: #fff; }
 .admin-container { padding: 40px; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box; }
 .admin-tabs { display: flex; gap: 10px; margin-bottom: 30px; }
-.tab-btn { background: #111; color: #888; border: 1px solid #333; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+.tab-btn { background: #111; color: #888; border: 1px solid #333; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
 .tab-btn.active { background: #ff3333; color: white; border-color: #ff3333; }
 .admin-panel { background: #151515; padding: 30px; border-radius: 12px; border: 1px solid #222; margin-bottom: 30px; }
 .file-drop-area { border: 2px dashed #444; padding: 50px; text-align: center; position: relative; }
@@ -158,16 +172,36 @@ body.admin-body { overflow: auto; background: #0d0d0d; }
 .modal-body { padding: 25px; color: #ccc; }
 .modal-footer { padding: 20px; border-top: 1px solid #222; display: flex; justify-content: flex-end; gap: 10px; }
 
-/* Mobile */
+/* 360 Gallery styles */
+#viewer { flex: 1; height: 100%; z-index: 1; outline: none; }
+#sidebar { width: 170px; background: #111; z-index: 20; border-right: 1px solid #222; display: flex; flex-direction: column; height: 100%; }
+.sidebar-title { color: #fff; padding: 20px 10px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; text-align: center; border-bottom: 1px solid #222; letter-spacing: 1px; }
+#thumbPanel { overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px; flex: 1; }
+#sidebar .thumb { width: 100%; height: 90px; border-radius: 6px; }
+#drawingCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 30; pointer-events: none; visibility: hidden; cursor: crosshair; }
+#drawingCanvas.active { visibility: visible; pointer-events: auto; }
+#drawingToolbar { position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 110; background: rgba(20, 20, 20, 0.8); padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
+.tool-btn { width: 40px; height: 40px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.05); color: white; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.tool-btn.active { background: #ff3333; border-color: #ff3333; }
+.tool-popup { position: absolute; left: 60px; background: rgba(0, 0, 0, 0.9); padding: 10px; border-radius: 6px; display: none; gap: 5px; border: 1px solid rgba(255, 255, 255, 0.1); }
+#brushPopup { top: 50px; }
+#colorPopup { top: 100px; flex-wrap: wrap; width: 80px; }
+.color-swatch { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 1px solid #555; }
+#controls { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 90; }
+#controls button { width: 60px; height: 60px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.5); color: white; font-size: 1.5rem; cursor: pointer; backdrop-filter: blur(5px); transition: all 0.3s; }
+
+/* Mobile Defaults */
 @media (max-width: 768px) {
     .hero-brand { font-size: 3rem; }
     .hero-cards { flex-direction: column; align-items: center; gap: 20px; }
     .hero-card { width: 90%; height: 140px; flex-direction: row; padding: 0 20px; }
     .card-inner { flex-direction: row; width: 100%; justify-content: flex-start; gap: 20px; padding: 0; }
     .card-icon-svg { width: 50px; height: 50px; margin: 0; }
+    .btn-text { display: none; }
+    #sidebar { display: none; }
+    #drawingCanvas { width: 100%; }
     .thumbnail-bar { max-width: 95%; padding: 10px; }
     .thumb { width: 70px; height: 50px; }
     #infoName { font-size: 1.5rem; }
     .color-editor-dock { display: none; }
-    .live-color-display { display: none; } /* Hide readout on mobile to save space */
 }
