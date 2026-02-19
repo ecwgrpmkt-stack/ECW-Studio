@@ -7,7 +7,6 @@ const ColorEngine = {
     materialsData: [],
     groups: {},
     dock: null,
-    displayTimer: null, // Timer to fade out the RGB readout
 
     // 1. Math Helpers
     rgbToHsl(r, g, b) {
@@ -104,7 +103,7 @@ const ColorEngine = {
         this.buildUI();
     },
 
-    // 3. UI Builder (No Brightness Slider)
+    // 3. UI Builder
     buildUI() {
         this.dock.innerHTML = '<div class="ce-title">Material Tuner</div>';
         
@@ -112,10 +111,17 @@ const ColorEngine = {
             const groupMats = this.groups[groupName];
             if (groupMats.length === 0) return;
 
+            // Calculate average original color
             let avgR = 0, avgG = 0, avgB = 0;
             groupMats.forEach(m => { avgR += m.originalRgb[0]; avgG += m.originalRgb[1]; avgB += m.originalRgb[2]; });
             avgR /= groupMats.length; avgG /= groupMats.length; avgB /= groupMats.length;
+            
             const hexColor = `#${Math.round(avgR*255).toString(16).padStart(2,'0')}${Math.round(avgG*255).toString(16).padStart(2,'0')}${Math.round(avgB*255).toString(16).padStart(2,'0')}`;
+            
+            // Initial RGB integers for the readout
+            const initialR = Math.round(groupMats[0].originalRgb[0] * 255);
+            const initialG = Math.round(groupMats[0].originalRgb[1] * 255);
+            const initialB = Math.round(groupMats[0].originalRgb[2] * 255);
 
             const section = document.createElement('div');
             section.className = 'ce-section';
@@ -140,8 +146,10 @@ const ColorEngine = {
                         <div class="range-wrap"><div class="range-tick"></div><input type="range" data-type="con" min="-100" max="100" value="0"></div>
                     </div>
                 </div>
+                <div class="ce-rgb-readout">RGB(${initialR}, ${initialG}, ${initialB})</div>
             `;
             
+            // Events
             const inputs = section.querySelectorAll('input');
             inputs.forEach(input => {
                 input.addEventListener('input', () => this.applyColor(groupName, section));
@@ -160,13 +168,12 @@ const ColorEngine = {
         this.dock.classList.add('active');
     },
 
-    // 4. Color Applier & RGB Readout
+    // 4. Color Applier & Inline RGB Update
     applyColor(groupName, section) {
         const hueShift = parseFloat(section.querySelector('[data-type="hue"]').value) / 360;
         const satShift = parseFloat(section.querySelector('[data-type="sat"]').value) / 100;
         const conShift = parseFloat(section.querySelector('[data-type="con"]').value); 
 
-        // Contrast Math
         const C = conShift * 2.55; 
         const factor = (259 * (C + 255)) / (255 * (259 - C));
 
@@ -176,22 +183,18 @@ const ColorEngine = {
         groupMats.forEach((m, index) => {
             let [h, s, l] = m.hsl;
             
-            // 1. Shift Hue & Saturation
             h = (h + hueShift + 1) % 1; 
             s = this.clamp(s + satShift, 0, 1);
             
-            // Convert to RGB
             let [r, g, b] = this.hslToRgb(h, s, l);
 
-            // 2. Apply Contrast
             r = this.clamp(factor * (r - 0.5) + 0.5, 0, 1);
             g = this.clamp(factor * (g - 0.5) + 0.5, 0, 1);
             b = this.clamp(factor * (b - 0.5) + 0.5, 0, 1);
 
-            // 3. Update Model
             m.mat.pbrMetallicRoughness.setBaseColorFactor([r, g, b, m.originalRgb[3]]);
 
-            // Capture final RGB of the first material in the group for the UI readout
+            // Capture final RGB of the primary material for the text readout
             if (index === 0) {
                 displayR = Math.round(r * 255);
                 displayG = Math.round(g * 255);
@@ -199,25 +202,11 @@ const ColorEngine = {
             }
         });
 
-        // Trigger Live Display if Primary or Secondary color is changed
-        if (groupName === 'Primary Color' || groupName === 'Secondary Color') {
-            this.showLiveColor(groupName, displayR, displayG, displayB);
+        // Update the plain text element dynamically
+        const readout = section.querySelector('.ce-rgb-readout');
+        if (readout) {
+            readout.innerText = `RGB(${displayR}, ${displayG}, ${displayB})`;
         }
-    },
-
-    // 5. Show Live RGB Display
-    showLiveColor(name, r, g, b) {
-        const display = document.getElementById('liveColorDisplay');
-        if (!display) return;
-
-        display.innerHTML = `<span style="color:#ff3333;">${name.toUpperCase()}</span> RGB(${r}, ${g}, ${b})`;
-        display.classList.add('active');
-
-        // Hide after 3 seconds of inactivity
-        clearTimeout(this.displayTimer);
-        this.displayTimer = setTimeout(() => {
-            display.classList.remove('active');
-        }, 3000);
     },
 
     reset() {
@@ -226,9 +215,6 @@ const ColorEngine = {
             this.dock.classList.add('hidden');
             this.dock.innerHTML = '';
         }
-        const display = document.getElementById('liveColorDisplay');
-        if (display) display.classList.remove('active');
-        
         this.groups = {};
         this.materialsData = [];
     }
