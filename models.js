@@ -10,11 +10,12 @@ const viewer = document.querySelector("#viewer3d");
 // TIMERS
 let idleTimer = null;
 let slideTimer = null; 
-const IDLE_DELAY = 3000;       // 3s for Hand Icon + Camera Reset
-const SLIDE_DELAY = 60000;     // 60s for Auto-Next fade
+const IDLE_DELAY = 3000;       
+const SLIDE_DELAY = 60000;     
+let colorEngineTimer = null; // Debounce for Color Engine
 
 // STATE
-let savedOrbit = null; // Stores {theta, phi} to persist angle between car switches
+let savedOrbit = null; 
 
 async function initShowroom() {
     const loader = document.getElementById('ecwLoader');
@@ -22,8 +23,6 @@ async function initShowroom() {
 
     try {
         const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${MODEL_FOLDER}`);
-        
-        if (response.status === 404) throw new Error("Models folder not found.");
         if (!response.ok) throw new Error("GitHub API Error.");
         
         const files = await response.json();
@@ -60,31 +59,25 @@ async function initShowroom() {
     }
 }
 
-// --- TRANSITION LOGIC ---
-
 function transitionToModel(index) {
     const fadeOverlay = document.getElementById('fadeOverlay');
     const loader = document.getElementById('ecwLoader');
     
-    // Hide Color Editor during transition
+    // Clear Color Engine UI instantly before swap
     if (typeof ColorEngine !== 'undefined') ColorEngine.reset();
 
-    // Save current camera angle before switching
     if (viewer) {
         const orbit = viewer.getCameraOrbit();
         savedOrbit = { theta: orbit.theta, phi: orbit.phi };
     }
 
-    // 1. Fade Out
     fadeOverlay.classList.add('active');
     loader.classList.add('active'); 
 
     setTimeout(() => {
-        // 2. Switch Model (Behind the black screen)
         currentIndex = index;
         loadModelData(currentIndex);
 
-        // 3. Buffer then Fade In
         setTimeout(() => {
             fadeOverlay.classList.remove('active');
             loader.classList.remove('active');
@@ -107,14 +100,11 @@ function loadModelData(index) {
         viewer.src = data.src;
         viewer.alt = `3D Model of ${data.name}`;
         
-        // PERSIST ORBIT (Keep looking at the same spot on the new car)
         if (savedOrbit) {
             viewer.cameraOrbit = `${savedOrbit.theta}rad ${savedOrbit.phi}rad auto`;
         } else {
             viewer.cameraOrbit = "auto auto auto";
         }
-
-        // Initially ensure auto-rotate is on until interaction
         viewer.autoRotate = true; 
     }
     updateThumbs();
@@ -124,7 +114,6 @@ function buildThumbnails() {
     const panel = document.getElementById("thumbPanel");
     if(!panel) return;
     panel.innerHTML = "";
-    
     models.forEach((item, i) => {
         const thumb = document.createElement("img");
         thumb.src = item.poster; 
@@ -141,16 +130,12 @@ function updateThumbs() {
     });
 }
 
-// --- IDLE & INTERACTION LOGIC ---
-
 function setupEvents() {
     document.getElementById("prevBtn").onclick = () => {
-        let newIndex = (currentIndex - 1 + models.length) % models.length;
-        transitionToModel(newIndex);
+        transitionToModel((currentIndex - 1 + models.length) % models.length);
     };
     document.getElementById("nextBtn").onclick = () => {
-        let newIndex = (currentIndex + 1) % models.length;
-        transitionToModel(newIndex);
+        transitionToModel((currentIndex + 1) % models.length);
     };
     document.getElementById("fsBtn").onclick = () => {
         const app = document.getElementById("app");
@@ -158,46 +143,37 @@ function setupEvents() {
     };
 
     if(viewer) {
-        // Stop rotation & Hide Hand when user touches model
         viewer.addEventListener('camera-change', (e) => {
             if (e.detail.source === 'user-interaction') {
                 viewer.autoRotate = false;
                 document.getElementById('idleIndicator').classList.remove('visible');
-                resetTimers(); // Restart countdown since user is active
+                resetTimers(); 
             }
         });
 
-        // INIT COLOR ENGINE WHEN GLB PARSES
+        // ROBUST COLOR ENGINE HOOK
         viewer.addEventListener('load', () => {
             if (typeof ColorEngine !== 'undefined') {
-                // Short delay to ensure materials are fully registered by the engine
-                setTimeout(() => ColorEngine.analyze(viewer), 1000);
+                clearTimeout(colorEngineTimer);
+                // Wait 500ms after load to ensure scene graph is completely parsed
+                colorEngineTimer = setTimeout(() => ColorEngine.analyze(viewer), 500);
             }
         });
     }
 }
 
 function startTimers() {
-    // 3s Timer: Show Hand + Reset Camera Height + Auto-Rotate
     idleTimer = setTimeout(() => {
         if(viewer) {
             viewer.autoRotate = true;
-            
-            // SMART CAMERA RESET:
-            // Keep horizontal angle (theta) same, but fix vertical (phi) to side view (~75deg)
             const currentOrbit = viewer.getCameraOrbit();
-            const currentTheta = currentOrbit.theta; // keep current rotation
-            
-            // Smoothly interpolate to new orbit using the attribute
-            viewer.cameraOrbit = `${currentTheta}rad 75deg auto`;
+            viewer.cameraOrbit = `${currentOrbit.theta}rad 75deg auto`;
         }
         document.getElementById('idleIndicator').classList.add('visible');
     }, IDLE_DELAY);
 
-    // 60s Timer: Next Slide
     slideTimer = setTimeout(() => {
-        let nextIndex = (currentIndex + 1) % models.length;
-        transitionToModel(nextIndex);
+        transitionToModel((currentIndex + 1) % models.length);
     }, SLIDE_DELAY);
 }
 
@@ -207,5 +183,4 @@ function resetTimers() {
     startTimers();
 }
 
-// Start
 initShowroom();
