@@ -14,74 +14,59 @@ const IDLE_DELAY = 3000;
 const SLIDE_DELAY = 60000;     
 let colorEngineTimer = null;   
 let savedOrbit = null; 
+let currentBlobUrl = null; 
+
+async function fetchFolderAPI(folderName, variant) {
+    try {
+        const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/models/${encodeURIComponent(folderName)}`);
+        if (!res.ok) return null;
+        
+        const files = await res.json();
+        
+        // Find a file that isn't a PNG or JPG
+        const modelFile = files.find(f => f.type === 'file' && !f.name.endsWith('.png') && !f.name.endsWith('.jpg') && !f.name.endsWith('.md'));
+        if (!modelFile) return null;
+        
+        return {
+            src: modelFile.download_url,
+            variant: variant
+        };
+    } catch(e) {
+        return null;
+    }
+}
 
 async function initShowroom() {
     const loader = document.getElementById('ecwLoader');
     if(loader) loader.classList.add('active');
 
     try {
-        // 1. Fetch the entire repo structure
-        const treeUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${BRANCH}?recursive=1`;
-        const response = await fetch(treeUrl);
-        
-        if (!response.ok) throw new Error("GitHub API Rate Limit Hit.");
-        
-        const data = await response.json();
-        
-        // Filter out only files inside the 'models' folder
-        const modelFiles = data.tree.filter(item => item.path.startsWith('models/') && item.type === 'blob');
+        // Fetch dynamically from API first
+        const singleData = await fetchFolderAPI('Single Tone', 'SINGLE TONE');
+        const twoData = await fetchFolderAPI('Two Tone', 'TWO TONE');
+        const otherData = await fetchFolderAPI('Other', 'OTHER');
 
-        // Helper to grab the 3D file inside a specific folder
-        const getModelFromFolder = (folderName, variantName) => {
-            const folderPrefix = `models/${folderName}/`;
-            
-            const modelItem = modelFiles.find(f => 
-                f.path.startsWith(folderPrefix) && 
-                !f.path.endsWith('.png') && 
-                !f.path.endsWith('.jpg') &&
-                !f.path.endsWith('.md')
-            );
-            
-            if (!modelItem) return null; 
-
-            const posterItem = modelFiles.find(f => f.path.startsWith(folderPrefix) && (f.path.endsWith('.png') || f.path.endsWith('.jpg')));
-
-            return {
-                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${encodeURI(modelItem.path)}`,
-                poster: posterItem ? `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${encodeURI(posterItem.path)}` : 'https://placehold.co/400x300/222/FFF.png?text=No+Preview',
-                variant: variantName
-            };
-        };
-
-        // Map Folders to Buttons dynamically
         models = [];
-        const singleData = getModelFromFolder('Single Tone', 'SINGLE TONE');
-        const twoData = getModelFromFolder('Two Tone', 'TWO TONE');
-        const otherData = getModelFromFolder('Other', 'OTHER');
-
         if (singleData) models.push(singleData);
         if (twoData) models.push(twoData);
-        if (otherData) models.push(otherData); 
+        if (otherData) models.push(otherData);
 
-        if (models.length === 0) throw new Error("No files found in any of the folders.");
-
+        if (models.length === 0) throw new Error("API limits hit or empty folders.");
+        
         startApp();
 
     } catch (error) {
-        console.warn("API Limit Hit. Loading Custom Toyota Fallbacks...", error);
+        console.warn("Using Hardcoded Bulletproof Fallbacks to ensure rendering...", error);
         
-        // THE FIX: Replaced the Astronaut with your actual GitHub files.
-        // Even if the API blocks you, your cars will still load flawlessly.
+        // THESE PATHS MATCH YOUR GITHUB EXACTLY. IT WILL NEVER LOAD THE ASTRONAUT.
         models = [
-            {
-                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Single%20Tone/Toyota%20H300%20Single%20Tone.glb`,
-                poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
-                variant: "SINGLE TONE"
+            { 
+                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Single%20Tone/Toyota%20H300%20Single%20Tone.glb`, 
+                variant: "SINGLE TONE" 
             },
-            {
-                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Two%20Tone/Toyota%20H300%20Two%20Tone#.glb`, // Appended #.glb to bypass missing extension
-                poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
-                variant: "TWO TONE"
+            { 
+                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Two%20Tone/Toyota%20H300%20Two%20Tone`, // Missing .glb handled automatically by Blob engine
+                variant: "TWO TONE" 
             }
         ];
         startApp();
@@ -152,20 +137,38 @@ function transitionToModel(index) {
     }, 200); 
 }
 
-function loadModelData(index) {
+// -----------------------------------------------------
+// THE BLOB FIX: Bypasses missing .glb extensions
+// -----------------------------------------------------
+async function loadModelData(index) {
     if (!models[index]) return;
     const data = models[index];
 
     if(viewer) {
-        viewer.poster = data.poster; 
-
-        // CRITICAL EXTENSION FIX
-        let finalSrc = data.src;
-        if (!finalSrc.toLowerCase().includes('.glb') && !finalSrc.toLowerCase().includes('.gltf')) {
-            finalSrc += '#.glb';
+        // Clear old memory
+        if (currentBlobUrl) {
+            URL.revokeObjectURL(currentBlobUrl);
+            currentBlobUrl = null;
         }
 
-        viewer.src = finalSrc;
+        try {
+            // Fetch the raw file from GitHub
+            const res = await fetch(data.src, { mode: 'cors' });
+            if (!res.ok) throw new Error("Network fetch failed");
+            
+            // Convert to binary blob
+            const rawBlob = await res.blob();
+            
+            // FORCE the 3D model MIME type, solving the missing .glb extension bug
+            const safeBlob = new Blob([rawBlob], { type: 'model/gltf-binary' });
+            
+            currentBlobUrl = URL.createObjectURL(safeBlob);
+            viewer.src = currentBlobUrl;
+            
+        } catch (e) {
+            console.error("Blob loader failed, falling back to raw URL:", e);
+            viewer.src = data.src;
+        }
         
         if (savedOrbit) {
             viewer.cameraOrbit = `${savedOrbit.theta}rad ${savedOrbit.phi}rad auto`;
