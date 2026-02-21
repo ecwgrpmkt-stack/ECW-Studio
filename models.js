@@ -16,57 +16,74 @@ let colorEngineTimer = null;
 let savedOrbit = null; 
 let currentBlobUrl = null; 
 
-async function fetchFolderAPI(folderName, variant) {
-    try {
-        const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/models/${encodeURIComponent(folderName)}`);
-        if (!res.ok) return null;
-        
-        const files = await res.json();
-        
-        // Find a file that isn't a PNG or JPG
-        const modelFile = files.find(f => f.type === 'file' && !f.name.endsWith('.png') && !f.name.endsWith('.jpg') && !f.name.endsWith('.md'));
-        if (!modelFile) return null;
-        
-        return {
-            src: modelFile.download_url,
-            variant: variant
-        };
-    } catch(e) {
-        return null;
-    }
-}
-
 async function initShowroom() {
     const loader = document.getElementById('ecwLoader');
     if(loader) loader.classList.add('active');
 
     try {
-        // Fetch dynamically from API first
-        const singleData = await fetchFolderAPI('Single Tone', 'SINGLE TONE');
-        const twoData = await fetchFolderAPI('Two Tone', 'TWO TONE');
-        const otherData = await fetchFolderAPI('Other', 'OTHER');
+        // 1. Fetch the entire repo structure in a single API call to save limits
+        const treeUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${BRANCH}?recursive=1`;
+        const response = await fetch(treeUrl);
+        
+        if (!response.ok) throw new Error("GitHub API Rate Limit Hit.");
+        
+        const data = await response.json();
+        
+        // Filter out only files inside the 'models' folder
+        const modelFiles = data.tree.filter(item => item.path.startsWith('models/') && item.type === 'blob');
 
+        // 2. HELPER: Grab whatever file is inside the target folder
+        const getModelFromFolder = (folderName, variantName) => {
+            const folderPrefix = `models/${folderName}/`;
+            
+            // Find any file in this folder that is NOT an image or text file
+            const modelItem = modelFiles.find(f => 
+                f.path.startsWith(folderPrefix) && 
+                !f.path.endsWith('.png') && 
+                !f.path.endsWith('.jpg') &&
+                !f.path.endsWith('.md')
+            );
+            
+            if (!modelItem) return null; // Folder is empty or missing
+
+            // Find a preview image if one exists in the same folder
+            const posterItem = modelFiles.find(f => f.path.startsWith(folderPrefix) && (f.path.endsWith('.png') || f.path.endsWith('.jpg')));
+
+            return {
+                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${encodeURI(modelItem.path)}`,
+                poster: posterItem ? `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${encodeURI(posterItem.path)}` : 'https://placehold.co/400x300/222/FFF.png?text=No+Preview',
+                variant: variantName
+            };
+        };
+
+        // 3. MAP EXACT FOLDERS TO BUTTONS
         models = [];
+        const singleData = getModelFromFolder('Single Tone', 'Single Tone');
+        const twoData = getModelFromFolder('Two Tone', 'Two Tone');
+        const otherData = getModelFromFolder('Other', 'Other');
+
         if (singleData) models.push(singleData);
         if (twoData) models.push(twoData);
-        if (otherData) models.push(otherData);
+        if (otherData) models.push(otherData); // ONLY creates the 'Other' button if a file exists inside
 
-        if (models.length === 0) throw new Error("API limits hit or empty folders.");
-        
+        if (models.length === 0) throw new Error("No files found in any of the folders.");
+
         startApp();
 
     } catch (error) {
-        console.warn("Using Hardcoded Bulletproof Fallbacks to ensure rendering...", error);
+        console.warn("API Failed. Using Hardcoded Fallback to your exact Repo structure...", error);
         
-        // THESE PATHS MATCH YOUR GITHUB EXACTLY. IT WILL NEVER LOAD THE ASTRONAUT.
+        // Exact fallback matching your GitHub structure, guaranteeing it works even if API is blocked
         models = [
-            { 
-                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Single%20Tone/Toyota%20H300%20Single%20Tone.glb`, 
-                variant: "SINGLE TONE" 
+            {
+                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Single%20Tone/Toyota%20H300%20Single%20Tone.glb`,
+                poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
+                variant: "Single Tone"
             },
-            { 
-                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Two%20Tone/Toyota%20H300%20Two%20Tone`, // Missing .glb handled automatically by Blob engine
-                variant: "TWO TONE" 
+            {
+                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Two%20Tone/Toyota%20H300%20Two%20Tone`,
+                poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
+                variant: "Two Tone"
             }
         ];
         startApp();
@@ -132,42 +149,51 @@ function transitionToModel(index) {
             fadeOverlay.classList.remove('active');
             loader.classList.remove('active');
             resetGlobalTimers(); 
+            preloadNextModel();
         }, 200); 
 
     }, 200); 
 }
 
 // -----------------------------------------------------
-// THE BLOB FIX: Bypasses missing .glb extensions
+// THE BULLETPROOF BLOB INTERCEPTOR
+// This solves the "missing .glb extension" bug perfectly.
 // -----------------------------------------------------
 async function loadModelData(index) {
     if (!models[index]) return;
     const data = models[index];
 
     if(viewer) {
-        // Clear old memory
+        viewer.poster = data.poster; 
+
+        // Clear previous memory to prevent browser crashes
         if (currentBlobUrl) {
             URL.revokeObjectURL(currentBlobUrl);
             currentBlobUrl = null;
         }
 
         try {
-            // Fetch the raw file from GitHub
-            const res = await fetch(data.src, { mode: 'cors' });
-            if (!res.ok) throw new Error("Network fetch failed");
+            // 1. Fetch the raw file bytes directly
+            const response = await fetch(data.src, { mode: 'cors' });
+            if (!response.ok) throw new Error("Failed to fetch model from GitHub");
+
+            const arrayBuffer = await response.arrayBuffer();
             
-            // Convert to binary blob
-            const rawBlob = await res.blob();
-            
-            // FORCE the 3D model MIME type, solving the missing .glb extension bug
-            const safeBlob = new Blob([rawBlob], { type: 'model/gltf-binary' });
-            
+            // 2. FORCE the 3D model MIME type. This tricks the browser into rendering
+            // the file perfectly even if you uploaded it without a .glb extension!
+            const safeBlob = new Blob([arrayBuffer], { type: 'model/gltf-binary' });
             currentBlobUrl = URL.createObjectURL(safeBlob);
-            viewer.src = currentBlobUrl;
             
+            viewer.src = currentBlobUrl;
+
         } catch (e) {
-            console.error("Blob loader failed, falling back to raw URL:", e);
-            viewer.src = data.src;
+            console.error("Blob Interceptor failed, falling back to raw URL:", e);
+            // Absolute last resort
+            let fallbackSrc = data.src;
+            if (!fallbackSrc.toLowerCase().includes('.glb') && !fallbackSrc.toLowerCase().includes('.gltf')) {
+                fallbackSrc += '#.glb';
+            }
+            viewer.src = fallbackSrc;
         }
         
         if (savedOrbit) {
@@ -178,6 +204,15 @@ async function loadModelData(index) {
         viewer.autoRotate = true; 
     }
     updateVariantButtons();
+}
+
+function preloadNextModel() {
+    if (models.length > 1) {
+        let nextIndex = (currentIndex + 1) % models.length;
+        const nextModel = models[nextIndex];
+        const img = new Image();
+        img.src = nextModel.poster; // Only preloads the image to save bandwidth
+    }
 }
 
 function setupEvents() {
