@@ -1,7 +1,6 @@
 /**
  * ECW Studio - Real-Time Material Color Engine
  */
-
 const ColorEngine = {
     viewer: null,
     materialsData: [],
