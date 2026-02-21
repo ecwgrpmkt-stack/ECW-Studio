@@ -7,12 +7,14 @@ let models = [];
 let currentIndex = 0;
 const viewer = document.querySelector("#viewer3d");
 
-// TIMERS & STATE
-let idleTimer = null;
-let slideTimer = null; 
+// DECOUPLED TIMERS
+let globalIdleTimer = null;       // Controls the Hand Icon
+let cameraIdleTimer = null;       // Controls the 3D Auto-Rotation
+let slideTimer = null;            // Controls the 60s auto-slide
+let colorEngineTimer = null;   
+
 const IDLE_DELAY = 3000;       
 const SLIDE_DELAY = 60000;     
-let colorEngineTimer = null;   
 let savedOrbit = null; 
 
 async function initShowroom() {
@@ -20,7 +22,6 @@ async function initShowroom() {
     if(loader) loader.classList.add('active');
 
     try {
-        // 1. Fetch entire repo map in 1 call to save API limits
         const treeUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${BRANCH}?recursive=1`;
         const response = await fetch(treeUrl);
         
@@ -29,11 +30,9 @@ async function initShowroom() {
         const data = await response.json();
         const modelFiles = data.tree.filter(item => item.path.startsWith('models/') && item.type === 'blob');
 
-        // 2. HELPER: Safely grab only valid 3D files
         const getModelFromFolder = (folderName, variantName) => {
             const folderPrefix = `models/${folderName}/`;
             
-            // Only grab files ending in .glb, OR files with NO extension at all
             const modelItem = modelFiles.find(f => {
                 if (!f.path.startsWith(folderPrefix)) return false;
                 const fileName = f.path.split('/').pop();
@@ -51,7 +50,6 @@ async function initShowroom() {
             };
         };
 
-        // 3. MAP FOLDERS TO BUTTONS
         models = [];
         const singleData = getModelFromFolder('Single Tone', 'SINGLE TONE');
         const twoData = getModelFromFolder('Two Tone', 'TWO TONE');
@@ -66,17 +64,16 @@ async function initShowroom() {
         startApp();
 
     } catch (error) {
-        console.warn("API Failed. Using strict hardcoded fallbacks to your Ford Models...", error);
+        console.warn("API Failed or Empty. Using strict hardcoded fallbacks...", error);
         
-        // Exact fallback mappings to your current Ford models. Ensures UI works even if API is blocked.
         models = [
             {
-                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Single%20Tone/ford_mustang_1965.glb`,
+                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Single%20Tone/Toyota%20H300%20Single%20Tone.glb`,
                 poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
                 variant: "SINGLE TONE"
             },
             {
-                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Two%20Tone/2019_ford_gt_heritage_edition.glb`,
+                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Two%20Tone/Toyota%20H300%20Two%20Tone`,
                 poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
                 variant: "TWO TONE"
             }
@@ -92,6 +89,8 @@ function startApp() {
     buildVariantButtons();
     loadModelData(currentIndex);
     setupEvents();
+    
+    // Kick off the global timers immediately
     resetGlobalTimers(); 
 }
 
@@ -156,9 +155,6 @@ function loadModelData(index) {
     if(viewer) {
         viewer.poster = data.poster; 
 
-        // CRITICAL EXTENSION FIX: 
-        // Force the viewer to treat extensionless files as valid binaries using a hash map
-        // Bypasses the need for heavy ArrayBuffers so the browser doesn't freeze.
         let finalSrc = data.src;
         if (!finalSrc.toLowerCase().includes('.glb') && !finalSrc.toLowerCase().includes('.gltf')) {
             finalSrc += '#.glb';
@@ -176,33 +172,44 @@ function loadModelData(index) {
     updateVariantButtons();
 }
 
+// -----------------------------------------------------
+// DECOUPLED UX EVENT ARCHITECTURE
+// -----------------------------------------------------
 function setupEvents() {
     document.getElementById("fsBtn").onclick = () => {
         const app = document.getElementById("app");
         !document.fullscreenElement ? app.requestFullscreen() : document.exitFullscreen();
     };
 
-    ['pointermove', 'pointerdown', 'keydown'].forEach(evt => {
+    // 1. GLOBAL INTERACTION: Hides Hand Icon, resets slide timer. Does NOT affect 3D rotation.
+    // Replaced 'pointermove' with 'mousemove/touchstart' to prevent hyper-sensitive jitter bugs.
+    ['mousemove', 'mousedown', 'touchstart', 'keydown'].forEach(evt => {
         window.addEventListener(evt, resetGlobalTimers);
     });
 
     if(viewer) {
+        // 2. 3D SPECIFIC INTERACTION: Stops car rotation. Resumes after 3s of letting go.
         viewer.addEventListener('camera-change', (e) => {
             if (e.detail.source === 'user-interaction') {
+                // Stop spinning
                 viewer.autoRotate = false;
                 
+                // Also instantly hide the hand icon when dragging the car
                 const indicator = document.getElementById('idleIndicator');
                 if (indicator) indicator.classList.remove('visible');
 
+                // 3D Resume Timer (3 seconds after they stop dragging)
                 clearTimeout(cameraIdleTimer);
                 cameraIdleTimer = setTimeout(() => {
                     viewer.autoRotate = true;
+                    // Gently correct the vertical pitch so the car looks good again
                     const currentOrbit = viewer.getCameraOrbit();
                     viewer.cameraOrbit = `${currentOrbit.theta}rad 75deg auto`;
                 }, IDLE_DELAY);
             }
         });
 
+        // 3. COLOR ENGINE DELAY
         viewer.addEventListener('load', () => {
             if (typeof ColorEngine !== 'undefined') {
                 clearTimeout(colorEngineTimer);
@@ -214,20 +221,24 @@ function setupEvents() {
     }
 }
 
+// Triggers whenever the mouse moves ANYWHERE on the screen (UI, buttons, background)
 function resetGlobalTimers() {
     const indicator = document.getElementById('idleIndicator');
     
+    // Instantly hide the hand icon
     if(indicator && indicator.classList.contains('visible')) {
         indicator.classList.remove('visible');
     }
     
-    clearTimeout(globalInteractionTimer);
-    globalInteractionTimer = setTimeout(() => {
-        if(viewer && viewer.autoRotate && indicator) {
+    // UI Timer: Bring the hand icon back ONLY if absolutely no mouse movement happens for 3 seconds
+    clearTimeout(globalIdleTimer);
+    globalIdleTimer = setTimeout(() => {
+        if(indicator) {
             indicator.classList.add('visible');
         }
     }, IDLE_DELAY);
 
+    // Slide Timer: Don't advance to the next car if they are busy tweaking colors
     clearTimeout(slideTimer);
     slideTimer = setTimeout(() => {
         if(models.length > 1) {
