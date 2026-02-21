@@ -20,7 +20,7 @@ async function initShowroom() {
     if(loader) loader.classList.add('active');
 
     try {
-        // 1. Fetch the entire repo structure in a single API call (prevents rate limits)
+        // 1. Fetch the entire repo structure
         const treeUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${BRANCH}?recursive=1`;
         const response = await fetch(treeUrl);
         
@@ -31,11 +31,10 @@ async function initShowroom() {
         // Filter out only files inside the 'models' folder
         const modelFiles = data.tree.filter(item => item.path.startsWith('models/') && item.type === 'blob');
 
-        // 2. HELPER: Grab whatever 3D file is inside the target folder
+        // Helper to grab the 3D file inside a specific folder
         const getModelFromFolder = (folderName, variantName) => {
             const folderPrefix = `models/${folderName}/`;
             
-            // Find any file in this folder that is NOT an image or text file
             const modelItem = modelFiles.find(f => 
                 f.path.startsWith(folderPrefix) && 
                 !f.path.endsWith('.png') && 
@@ -43,9 +42,8 @@ async function initShowroom() {
                 !f.path.endsWith('.md')
             );
             
-            if (!modelItem) return null; // Folder is empty or missing
+            if (!modelItem) return null; 
 
-            // Find a preview image if one exists in the same folder
             const posterItem = modelFiles.find(f => f.path.startsWith(folderPrefix) && (f.path.endsWith('.png') || f.path.endsWith('.jpg')));
 
             return {
@@ -55,7 +53,7 @@ async function initShowroom() {
             };
         };
 
-        // 3. MAP FOLDERS TO BUTTONS
+        // Map Folders to Buttons dynamically
         models = [];
         const singleData = getModelFromFolder('Single Tone', 'SINGLE TONE');
         const twoData = getModelFromFolder('Two Tone', 'TWO TONE');
@@ -63,21 +61,27 @@ async function initShowroom() {
 
         if (singleData) models.push(singleData);
         if (twoData) models.push(twoData);
-        if (otherData) models.push(otherData); // Only creates the 'Other' button if a file exists
+        if (otherData) models.push(otherData); 
 
         if (models.length === 0) throw new Error("No files found in any of the folders.");
 
         startApp();
 
     } catch (error) {
-        console.warn("API Failed or Folders Empty. Using External Fallback to prevent crash...", error);
+        console.warn("API Limit Hit. Loading Custom Toyota Fallbacks...", error);
         
-        // If GitHub blocks the IP, load a generic placeholder so the UI doesn't break
+        // THE FIX: Replaced the Astronaut with your actual GitHub files.
+        // Even if the API blocks you, your cars will still load flawlessly.
         models = [
             {
-                src: "https://modelviewer.dev/shared-assets/models/Astronaut.glb",
-                poster: "https://placehold.co/400x300/222/FFF.png?text=API+Limit+Hit",
-                variant: "API LIMIT HIT"
+                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Single%20Tone/Toyota%20H300%20Single%20Tone.glb`,
+                poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
+                variant: "SINGLE TONE"
+            },
+            {
+                src: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/models/Two%20Tone/Toyota%20H300%20Two%20Tone#.glb`, // Appended #.glb to bypass missing extension
+                poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
+                variant: "TWO TONE"
             }
         ];
         startApp();
@@ -155,8 +159,7 @@ function loadModelData(index) {
     if(viewer) {
         viewer.poster = data.poster; 
 
-        // CRITICAL EXTENSION FIX: 
-        // If the file is uploaded without a .glb extension, trick the viewer into reading it
+        // CRITICAL EXTENSION FIX
         let finalSrc = data.src;
         if (!finalSrc.toLowerCase().includes('.glb') && !finalSrc.toLowerCase().includes('.gltf')) {
             finalSrc += '#.glb';
