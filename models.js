@@ -1,6 +1,7 @@
 // CONFIGURATION
 const REPO_OWNER = "ecwgrpmkt-stack";
 const REPO_NAME = "ECW-Studio";
+const BRANCH = "main";
 
 let models = []; 
 let currentIndex = 0;
@@ -15,73 +16,67 @@ let colorEngineTimer = null;
 let savedOrbit = null; 
 let currentBlobUrl = null; 
 
-// Safely fetches a specific folder. Returns null if folder doesn't exist or is empty.
-async function fetchFolderData(folderName, variantName) {
-    try {
-        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/models/${encodeURIComponent(folderName)}`;
-        const response = await fetch(url);
-        
-        if (!response.ok) return null; 
-        
-        const files = await response.json();
-        
-        // Find the first valid 3D file in this folder
-        const glbFile = files.find(f => 
-            f.name.toLowerCase().endsWith('.glb') || 
-            f.name.toLowerCase().includes('tone') || 
-            f.name.toLowerCase().includes('toyota')
-        );
-        
-        if (!glbFile) return null;
-
-        const baseName = glbFile.name.replace('.glb', '');
-        const posterFile = files.find(f => f.name === `${baseName}.png`);
-
-        return {
-            src: glbFile.download_url,
-            poster: posterFile ? posterFile.download_url : 'https://placehold.co/400x300/222/FFF.png?text=No+Preview',
-            variant: variantName
-        };
-    } catch (error) {
-        return null; // Graceful fail
-    }
-}
-
 async function initShowroom() {
     const loader = document.getElementById('ecwLoader');
     if(loader) loader.classList.add('active');
 
     try {
-        // Promise.allSettled ensures that if one folder fails, the others still load
-        const results = await Promise.allSettled([
-            fetchFolderData('Single Tone', 'Single Tone'),
-            fetchFolderData('Two Tone', 'Two Tone'),
-            fetchFolderData('Other', 'Other')
-        ]);
-
-        models = [];
+        // 1. FETCH ENTIRE REPO TREE IN 1 CALL (Saves API limits)
+        const treeUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${BRANCH}?recursive=1`;
+        const response = await fetch(treeUrl);
         
-        // Safely extract successful results (ignoring nulls/empty folders)
-        if (results[0].status === 'fulfilled' && results[0].value) models.push(results[0].value);
-        if (results[1].status === 'fulfilled' && results[1].value) models.push(results[1].value);
-        if (results[2].status === 'fulfilled' && results[2].value) models.push(results[2].value);
+        if (!response.ok) throw new Error("GitHub API Rate Limit Hit.");
+        
+        const data = await response.json();
+        
+        // Filter only files inside the 'models' directory
+        const modelFiles = data.tree.filter(item => item.path.startsWith('models/') && item.type === 'blob');
 
-        if (models.length === 0) throw new Error("No 3D models found in folders. Attempting Fallback.");
+        // Helper Function to safely map files inside specific folders
+        const getModelFromFolder = (folderName, variantName) => {
+            const folderPrefix = `models/${folderName}/`;
+            
+            // Find any file in this folder that isn't a PNG image
+            const modelItem = modelFiles.find(f => f.path.startsWith(folderPrefix) && !f.path.endsWith('.png'));
+            if (!modelItem) return null;
+
+            // Find an image in this folder
+            const posterItem = modelFiles.find(f => f.path.startsWith(folderPrefix) && f.path.endsWith('.png'));
+
+            // Route through jsDelivr CDN for high-speed, CORS-safe fetching
+            return {
+                src: `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/${encodeURI(modelItem.path)}`,
+                poster: posterItem ? `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/${encodeURI(posterItem.path)}` : 'https://placehold.co/400x300/222/FFF.png?text=No+Preview',
+                variant: variantName
+            };
+        };
+
+        // 2. DYNAMICALLY BUILD THE ARRAY BASED ON FOLDERS
+        models = [];
+        const singleData = getModelFromFolder('Single Tone', 'Single Tone');
+        const twoData = getModelFromFolder('Two Tone', 'Two Tone');
+        const otherData = getModelFromFolder('Other', 'Other');
+
+        if (singleData) models.push(singleData);
+        if (twoData) models.push(twoData);
+        if (otherData) models.push(otherData); // Only pushes if the folder is NOT empty
+
+        if (models.length === 0) throw new Error("No valid files found in folders.");
 
         startApp();
 
     } catch (error) {
-        console.warn("API Failed or Folders Empty. Using Bulletproof Fallbacks...", error);
+        console.warn("API Failed. Using Fallbacks mapped to your specific folders...", error);
         
-        // Failsafe guarantees the UI will ALWAYS render buttons, even if API blocks you
+        // Bulletproof Fallbacks to the jsDelivr CDN using your exact new folder structure
         models = [
             {
-                src: "https://raw.githubusercontent.com/ecwgrpmkt-stack/ECW-Studio/main/models/Toyota%20H300%20Single%20Tone.glb",
+                src: `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/models/Single%20Tone/Toyota%20H300%20Single%20Tone.glb`,
                 poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
                 variant: "Single Tone"
             },
             {
-                src: "https://raw.githubusercontent.com/ecwgrpmkt-stack/ECW-Studio/main/models/Toyota%20H300%20Two%20Tone",
+                src: `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/models/Two%20Tone/Toyota%20H300%20Two%20Tone.glb`,
                 poster: "https://placehold.co/400x300/222/FFF.png?text=No+Preview",
                 variant: "Two Tone"
             }
@@ -173,7 +168,7 @@ async function loadModelData(index) {
         try {
             let finalBlob = null;
             
-            // Safe Cache Loading
+            // Advanced Cache Loading Setup
             if ('caches' in window && window.location.protocol !== 'file:') {
                 const cache = await caches.open('ecw-3d-models-v1');
                 const cachedResponse = await cache.match(data.src);
@@ -189,7 +184,6 @@ async function loadModelData(index) {
                     }
                 }
             } else {
-                // Fallback for strict environments without caches
                 const res = await fetch(data.src, { mode: 'cors' });
                 if (res.ok) finalBlob = await res.blob();
             }
@@ -250,7 +244,7 @@ function setupEvents() {
         !document.fullscreenElement ? app.requestFullscreen() : document.exitFullscreen();
     };
 
-    // UI interactions instantly hide the idle indicator
+    // UI interactions hide the idle indicator but KEEP auto-rotate active
     ['pointermove', 'pointerdown', 'keydown'].forEach(evt => {
         window.addEventListener(evt, resetGlobalTimers);
     });
